@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  :root { --g: #4ade80; --r: #f87171; --line: rgba(255,255,255,.07); }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 300px; padding: 16px; color: #e7e7ea;
+    background: radial-gradient(120% 80% at 0% 0%, rgba(74,222,128,.10), transparent 60%), #0d0f13;
+    font: 13px/1.4 "Segoe UI", Inter, system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  header img { width: 30px; height: 30px; border-radius: 8px; box-shadow: 0 0 14px rgba(74,222,128,.35); }
+  header b { display: block; font-size: 14px; } header small { color: #7a7b86; font-size: 11px; }
+  .card { background: linear-gradient(180deg, #16181f, #111319); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  .row { display: flex; justify-content: space-between; align-items: center; }
+  .lbl { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: #8a8b96; font-weight: 700; }
+  /* toggle */
+  .sw { position: relative; width: 38px; height: 22px; flex: none; }
+  .sw input { opacity: 0; width: 0; height: 0; }
+  .sw span { position: absolute; inset: 0; border-radius: 22px; background: #2a2e38; transition: .2s; cursor: pointer; }
+  .sw span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; transition: .2s; }
+  .sw input:checked + span { background: var(--g); box-shadow: 0 0 10px rgba(74,222,128,.5); }
+  .sw input:checked + span::after { transform: translateX(16px); }
+  /* rating */
+  .val { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 10px 0 4px; accent-color: var(--g); }
+  .ticks { display: flex; justify-content: space-between; font-size: 10px; color: #62636e; }
+  .ex { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .ex div { padding: 7px 9px; white-space: nowrap; border-radius: 9px; border: 1px solid; }
+  .ex .w { background: rgba(74,222,128,.07); border-color: rgba(74,222,128,.18); }
+  .ex .l { background: rgba(248,113,113,.07); border-color: rgba(248,113,113,.18); }
+  .ex b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .ex .w b { color: var(--g); } .ex .l b { color: var(--r); }
+  .sub { display: flex; justify-content: space-between; align-items: center; margin-top: 10px;
+    padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: #c4c4cc; }
+  .sub.off { opacity: .4; pointer-events: none; }
+  .num { display: flex; align-items: center; gap: 5px; color: #7a7b86; font-size: 11px; }
+  .num input { width: 50px; padding: 4px 6px; border-radius: 6px; border: 1px solid #2d323d;
+    background: #0f1116; color: #fff; font: inherit; font-size: 12px; text-align: right; }
+  p { margin: 6px 2px 0; font-size: 10.5px; color: #6f707b; }
+</style></head>
+<body>
+  <header>
+    <img src="icons/48.png" alt="">
+    <div><b>Karasu ELO Estimator</b><small>Unofficial · win chance &amp; Elo change</small></div>
+  </header>
+
+  <div class="card row">
+    <div><div class="lbl">Overlay</div>Show estimates on matches</div>
+    <label class="sw"><input type="checkbox" id="on"><span></span></label>
+  </div>
+
+  <div class="card">
+    <div class="row"><div class="lbl">Your usual HLTV rating</div><div class="val" id="val">1.00</div></div>
+    <input type="range" id="rating" min="0.3" max="2.5" step="0.05">
+    <div class="ticks"><span>0.3 · bad</span><span>great · 2.5</span></div>
+    <div class="ex">
+      <div class="w"><span class="lbl">Even match win</span><b id="exw">+18</b></div>
+      <div class="l"><span class="lbl">Even match loss</span><b id="exl">−21</b></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="row">
+      <div><div class="lbl">Auto-accept</div>Accept matches for me</div>
+      <label class="sw"><input type="checkbox" id="autoAccept"><span></span></label>
+    </div>
+    <div class="sub" id="delayRow">Wait before accepting
+      <span class="num"><input type="number" id="acceptDelay" min="0" max="10" step="0.5">s</span></div>
+  </div>
+  <p>Unofficial. Estimates are based on real Karasu matches and are usually within 1–2 Elo. Not affiliated with Karasu.</p>
+
+  <script src="model.js"></script>
+  <script src="popup.js"></script>
+</body></html>
