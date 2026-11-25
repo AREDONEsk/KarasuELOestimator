@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- Second Chrome Web Store graphic (1280x800): the popup itself.
+     Render: node store/render-popup.js && node store/render.js -->
+<html><head><meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; height: 800px; overflow: hidden; }
+  body { color: #e7e7ea; font-family: "Segoe UI", Inter, system-ui, sans-serif; position: relative;
+    background: radial-gradient(60% 80% at 0% 0%, rgba(74,222,128,.16), transparent 60%),
+                radial-gradient(55% 70% at 100% 100%, rgba(249,115,22,.10), transparent 60%), #0d0f13; }
+  .text { position: absolute; left: 72px; top: 0; bottom: 0; width: 420px; display: flex; flex-direction: column; justify-content: center; }
+  .tag { font-size: 14px; letter-spacing: .16em; font-weight: 800; color: #4ade80; }
+  h1 { margin-top: 14px; font-size: 44px; line-height: 1.12; font-weight: 800; letter-spacing: -.015em; }
+  ul { list-style: none; padding: 0; margin-top: 34px; display: grid; gap: 20px; }
+  li b { display: block; font-size: 19px; color: #f4f4f5; }
+  li span { display: block; margin-top: 3px; font-size: 15.5px; color: #8a8b96; line-height: 1.4; }
+  li { padding-left: 18px; border-left: 3px solid var(--c); }
+  .pop { position: absolute; border-radius: 18px; overflow: hidden; border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 6px rgba(255,255,255,.02); background: #0d0f13; }
+  .pop img { display: block; width: 100%; }
+  .a { left: 530px; top: 59px; width: 348px; height: 682px; }
+  .b { left: 906px; top: 96px; width: 318px; height: 632px; }
+  .b::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
+    background: linear-gradient(transparent, #0d0f13); }
+</style></head>
+<body>
+  <div class="text">
+    <div class="tag">THE POPUP</div>
+    <h1>Everything about<br>your rank, one<br>click away.</h1>
+    <ul>
+      <li style="--c:#a855f7"><b>Your level, live</b><span>Badge, Elo and progress to the next level, read from karasu.live.</span></li>
+      <li style="--c:#f97316"><b>Levels preview</b><span>The whole ladder from Level 1 to Ultimate, with your spot marked.</span></li>
+      <li style="--c:#4ade80"><b>Your HLTV rating</b><span>Filled in from your profile, with what an even match wins or loses.</span></li>
+      <li style="--c:#b1c3d9"><b>Auto-accept</b><span>Optional, with your own delay.</span></li>
+    </ul>
+  </div>
+  <div class="pop a"><img src="popup-closed.png" alt=""></div>
+  <div class="pop b"><img src="popup-levels.png" alt=""></div>
+</body></html>
