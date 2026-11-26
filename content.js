@@ -1,7 +1,7 @@
 (() => {
   const M = globalThis.KarasuEloModel;
   const BOX = "data-kee-box";
-  const RANGE = { bad: 0.6, great: 1.6 };
+  const RANGE = { bad: 0.6, great: 1.7 };
 
   let settings = { on: true, rating: 1.0, ratingAuto: false, myElo: null };
   let lastKey = "";
@@ -343,7 +343,7 @@
     tiles.append(tw, tl);
 
     const foot = h("div", "foot");
-    foot.append("At your ", h("b", "", r.toFixed(2)), " HLTV rating · ends = 0.6 to 1.6 game");
+    foot.append("At your ", h("b", "", r.toFixed(2)), " HLTV rating · ends = 0.6 to 1.7 game");
     card.append(h("div", "team", team.name), head, split, tiles, foot);
     if (approx) card.append(h("div", "note", "Match finished: approximate, using players' current Elo. Open the Scoreboard once, then come back here for the exact pre-match numbers."));
     else if (finished) card.append(h("div", "note", "Match finished: using each player's Elo from before the match."));
