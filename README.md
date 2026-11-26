@@ -5,8 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="store/match-1280x800.png" width="400" alt="Extension popup">
-  <img src="store/promo-1280x800.png" width="400" alt="All levels with their colors">
+  <img src="store/match-1280x800.png" width="800" alt="Extension popup">
 </p>
 # Karasu ELO Estimator
 
