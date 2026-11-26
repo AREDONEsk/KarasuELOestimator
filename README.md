@@ -1,3 +1,13 @@
+## Screenshots
+
+<p align="center">
+  <img src="store/match-1280x800.png" width="800" alt="Win chances and Elo gain/loss on the team cards">
+</p>
+
+<p align="center">
+  <img src="store/popup-1280x800.png" width="400" alt="Extension popup">
+  <img src="store/promo-1280x800.png" width="400" alt="All levels with their colors">
+</p>
 # Karasu ELO Estimator
 
 **Unofficial** Chrome extension for [karasu.live](https://karasu.live). It shows each team's win chance and your estimated Elo gain or loss on the match page. It can also accept matches for you if you turn that on.
