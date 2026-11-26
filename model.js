@@ -8,7 +8,7 @@
 //   whatever the real rating was. Fits every flame game seen: 1.81 and 2.51 both +33 (2.00 gives
 //   33), 1.87 got +44 (2.00 gives 44), and two +48s where 2.00 gives 65 but wins are capped.
 //   The flame starts at 1.70 (1.69 does not get one). MVP adds nothing extra.
-//   losses are capped at 40 and wins at 48. Every change is at least 1.
+//   losses are capped at 40 and wins at 48. Every change is at least 3 (lopsided matches show +3/-3 at any rating).
 //
 // Averages must be PRE-match Elo. On a finished match use preMatchAvg() first.
 globalThis.KarasuEloModel = (() => {
@@ -19,7 +19,8 @@ globalThis.KarasuEloModel = (() => {
   const FLAME_AS = 2.0;     // a flame game's win is worked out as if the rating were this
 
   const winChance = (ownAvg, enemyAvg) => 1 / (1 + 10 ** ((enemyAvg - ownAvg) / 400));
-  const atLeast1 = (x) => Math.max(1, Math.round(x));
+  const MIN_CHANGE = 3;
+  const atLeastMin = (x) => Math.max(MIN_CHANGE, Math.round(x));
 
   function estimate(ownAvg, enemyAvg, rating) {
     const chance = winChance(ownAvg, enemyAvg);
@@ -27,8 +28,8 @@ globalThis.KarasuEloModel = (() => {
     const win = winAt(rating >= FLAME_RATING ? FLAME_AS : rating);
     return {
       chance,
-      win: atLeast1(Math.min(WIN_CAP, win)),
-      loss: atLeast1(Math.min(LOSS_CAP, K * chance * (1.65 - 0.68 * rating))),
+      win: atLeastMin(Math.min(WIN_CAP, win)),
+      loss: atLeastMin(Math.min(LOSS_CAP, K * chance * (1.65 - 0.68 * rating))),
     };
   }
 
