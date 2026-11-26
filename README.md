@@ -31,7 +31,7 @@ win    = 44 × (1 − chance) × (0.08 + 0.74 × rating)
 loss   = 44 × chance       × (1.65 − 0.68 × rating)
 ```
 
-`rating` is the player's HLTV rating in the match. Every change is capped at 40 and is at least 1.
+`rating` is the player's HLTV rating in the match. A standout game (rating of about 1.6 or more, the flame icon on Karasu) counts as a 2.00 rating for the win. Wins are capped at 48 and losses at 40, and every change is at least 1.
 Your own Elo does not change the result; only the two team averages and how you play do.
 
 The model is in [`model.js`](model.js).
