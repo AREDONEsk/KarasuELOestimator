@@ -23,7 +23,7 @@
 
 ## How the estimate works
 
-Karasu does not publish its Elo formula. This model was fitted to 89 players across 9 real matches and is usually within 1–2 Elo.
+Karasu does not publish its Elo formula. This model was fitted across 25 real matches and is usually within 1–2 Elo.
 
 ```
 chance = 1 / (1 + 10 ^ ((enemyAvg - teamAvg) / 400))      // standard Elo win chance
