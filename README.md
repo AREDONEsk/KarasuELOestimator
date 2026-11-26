@@ -1,11 +1,11 @@
 ## Screenshots
 
 <p align="center">
-  <img src="store/match-1280x800.png" width="800" alt="Win chances and Elo gain/loss on the team cards">
+  <img src="store/popup-1280x800.png" width="800" alt="Win chances and Elo gain/loss on the team cards">
 </p>
 
 <p align="center">
-  <img src="store/popup-1280x800.png" width="400" alt="Extension popup">
+  <img src="store/match-1280x800.png" width="400" alt="Extension popup">
   <img src="store/promo-1280x800.png" width="400" alt="All levels with their colors">
 </p>
 # Karasu ELO Estimator
