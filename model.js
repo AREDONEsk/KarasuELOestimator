@@ -9,6 +9,8 @@
 //   33), 1.87 got +44 (2.00 gives 44), and two +48s where 2.00 gives 65 but wins are capped.
 //   The flame starts at 1.69. MVP adds nothing extra.
 //   losses are capped at 40, normal wins at 40 and flame wins at 48. Every change is at least 3 (lopsided matches show +3/-3 at any rating).
+//   Then losses get +3: checked against 3,000 real Karasu results (Nov 2026), the formula above came
+//   out about 3 short on losses. With the offset, losses are within ±1 Elo 65% of the time (was 14%).
 //
 // Averages must be PRE-match Elo. On a finished match use preMatchAvg() first.
 globalThis.KarasuEloModel = (() => {
@@ -22,6 +24,7 @@ globalThis.KarasuEloModel = (() => {
   const winChance = (ownAvg, enemyAvg) => 1 / (1 + 10 ** ((enemyAvg - ownAvg) / 400));
   const MIN_CHANGE = 3;
   const atLeastMin = (x) => Math.max(MIN_CHANGE, Math.round(x));
+  const LOSS_OFFSET = 3; // added before the loss cap
 
   function estimate(ownAvg, enemyAvg, rating) {
     const chance = winChance(ownAvg, enemyAvg);
@@ -31,7 +34,7 @@ globalThis.KarasuEloModel = (() => {
     return {
       chance,
       win: atLeastMin(win),
-      loss: atLeastMin(Math.min(LOSS_CAP, K * chance * (1.65 - 0.68 * rating))),
+      loss: atLeastMin(Math.min(LOSS_CAP, Math.round(K * chance * (1.65 - 0.68 * rating)) + LOSS_OFFSET)),
     };
   }
 
