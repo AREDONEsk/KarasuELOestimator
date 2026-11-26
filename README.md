@@ -17,7 +17,7 @@
 ## Features
 
 - **Win chance** for both teams, from the teams' average Elo.
-- **Estimated Elo gain and loss** at your usual HLTV rating, plus the range from a bad game (0.6 rating) to a great game (1.7 rating).
+- **Estimated Elo gain and loss** at your usual HLTV rating, plus the range from a bad game (0.6 rating) to a great game (1.69 rating).
 - **Shown on the Overview tab** of every match, before, during and after the game.
 - **Optional auto-accept** with an adjustable delay. It is off until you turn it on.
 
@@ -31,7 +31,7 @@ win    = 44 × (1 − chance) × (0.08 + 0.74 × rating)
 loss   = 44 × chance       × (1.65 − 0.68 × rating)
 ```
 
-`rating` is the player's HLTV rating in the match. A standout game (rating of 1.70 or more, the flame icon on Karasu) counts as a 2.00 rating for the win. Wins are capped at 48 and losses at 40, and every change is at least 3.
+`rating` is the player's HLTV rating in the match. A standout game (rating of 1.69 or more, the flame icon on Karasu) counts as a 2.00 rating for the win. Wins are capped at 48 and losses at 40, and every change is at least 3.
 Your own Elo does not change the result; only the two team averages and how you play do.
 
 The model is in [`model.js`](model.js).
