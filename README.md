@@ -17,7 +17,7 @@
 ## Features
 
 - **Win chance** for both teams, from the teams' average Elo.
-- **Estimated Elo gain and loss** at your usual HLTV rating, plus the range from a bad game (0.6 rating) to a great game (1.6 rating).
+- **Estimated Elo gain and loss** at your usual HLTV rating, plus the range from a bad game (0.6 rating) to a great game (1.7 rating).
 - **Shown on the Overview tab** of every match, before, during and after the game.
 - **Optional auto-accept** with an adjustable delay. It is off until you turn it on.
 
