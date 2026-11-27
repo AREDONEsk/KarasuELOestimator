@@ -3,7 +3,7 @@
   const BOX = "data-kee-box";
   const RANGE = { bad: 0.6, great: 1.69 };
 
-  let settings = { on: true, rating: 1.0, ratingAuto: false, myElo: null };
+  let settings = { on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null };
   let lastKey = "";
 
 
@@ -228,6 +228,12 @@
     .l .meter { background: linear-gradient(90deg, rgba(248,113,113,.15), rgba(248,113,113,.55)); }
     .meter b { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
       border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px #0f1116, 0 0 8px rgba(255,255,255,.6); }
+    .w .meter.rng { background: rgba(74,222,128,.13); } .l .meter.rng { background: rgba(248,113,113,.13); }
+    .meter i { position: absolute; top: -2px; bottom: -2px; border-radius: 4px; }
+    .w .meter i { background: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,.55); }
+    .l .meter i { background: #f87171; box-shadow: 0 0 10px rgba(248,113,113,.55); }
+    .meter.rng b { width: 6px; height: 6px; margin: -3px 0 0 -3px; box-shadow: 0 0 0 2px #0f1116; }
+    .big .to { font-size: 14px; font-weight: 700; color: #7a7b86; margin: 0 4px; }
     .ends { display: flex; justify-content: space-between; font-size: 10px; font-weight: 500; color: #7a7b86;
       font-variant-numeric: tabular-nums; }
     .foot { margin-top: 9px; font-size: 10px; font-weight: 500; color: #62636e; }
@@ -288,12 +294,28 @@
     return box;
   }
 
-  function tile(kind, label, sign, at, worst, best) {
+  // A win or loss tile. With your usual rating range known, the big number is the range of
+  // Elo from your usual bad game to your usual good game, the meter highlights that band and
+  // a small dot marks your average. Without it, one number and a dot at your average.
+  function tile(kind, label, sign, at, worst, best, usual) {
     const t = h("div", `tile ${kind}`);
-    t.append(h("div", "lbl", label), h("div", "big", `${sign}${at}`));
+    const big = h("div", "big");
     const m = h("div", "meter");
+    if (usual) {
+      const [a, b] = [usual.lo, usual.hi].sort((x, y) => x - y);
+      if (a === b) big.textContent = `${sign}${a}`;
+      else big.append(`${sign}${a}`, h("span", "to", "to"), `${sign}${b}`);
+      m.classList.add("rng");
+      const band = h("i");
+      const p1 = pos(usual.lo, worst, best), p2 = pos(usual.hi, worst, best);
+      band.style.left = `${Math.min(p1, p2)}%`;
+      band.style.width = `${Math.max(Math.abs(p2 - p1), 2)}%`;
+      m.append(band);
+    } else big.textContent = `${sign}${at}`;
+    t.append(h("div", "lbl", label), big);
     const dot = h("b");
     dot.style.left = `${pos(at, worst, best)}%`;
+    dot.title = `At your average: ${sign}${at}`;
     m.append(dot);
     const ends = h("div", "ends");
     ends.append(h("span", "", `${sign}${worst}`), h("span", "", `${sign}${best}`));
@@ -307,6 +329,9 @@
     const now = M.estimate(ownAvg, enemyAvg, r);
     const bad = M.estimate(ownAvg, enemyAvg, RANGE.bad);
     const great = M.estimate(ownAvg, enemyAvg, RANGE.great);
+    const range = usualRange();
+    const lo = range && M.estimate(ownAvg, enemyAvg, range[0]);
+    const hi = range && M.estimate(ownAvg, enemyAvg, range[1]);
     const pct = Math.round(now.chance * 100);
     if (pct < 50) card.classList.add("bad");
 
@@ -336,14 +361,16 @@
 
     const tiles = h("div", "tiles");
     // Win: a bad game gains least, a great game most. Loss: a great game loses least.
-    const tw = tile("w", "If you win", "+", now.win, bad.win, great.win);
-    const tl = tile("l", "If you lose", "−", now.loss, bad.loss, great.loss);
+    const tw = tile("w", "If you win", "+", now.win, bad.win, great.win, range && { lo: lo.win, hi: hi.win });
+    const tl = tile("l", "If you lose", "−", now.loss, bad.loss, great.loss, range && { lo: lo.loss, hi: hi.loss });
     const me = myElo();
     if (me !== null && !finished) { tw.append(proj(me, now.win)); tl.append(proj(me, -now.loss)); }
     tiles.append(tw, tl);
 
     const foot = h("div", "foot");
-    foot.append("At your ", h("b", "", r.toFixed(2)), " HLTV rating · ends = 0.6 to 1.69 game");
+    if (range) foot.append("Your usual HLTV ", h("b", "", `${range[0].toFixed(2)}–${range[1].toFixed(2)}`),
+      " · dot = your ", h("b", "", r.toFixed(2)), " average · ends = 0.6 to 1.69 game");
+    else foot.append("At your ", h("b", "", r.toFixed(2)), " HLTV rating · ends = 0.6 to 1.69 game");
     card.append(h("div", "team", team.name), head, split, tiles, foot);
     if (approx) card.append(h("div", "note", "Match finished: approximate, using players' current Elo. Open the Scoreboard once, then come back here for the exact pre-match numbers."));
     else if (finished) card.append(h("div", "note", "Match finished: using each player's Elo from before the match."));
@@ -370,6 +397,7 @@
     const old = document.querySelectorAll(`[${BOX}]`);
     rememberMyElo();
     rememberMyRating();
+    rememberMyRange();
     if (!settings.on) { old.forEach((b) => b.remove()); lastKey = ""; return; }
     rememberScoreboard();
     const { teams, finished } = readTeams();
@@ -381,7 +409,7 @@
     const exact = !!pre;
     const avg = pre || teams.map(shownAvg);
     const approx = finished && !exact;
-    const key = `${avg}|${finished}|${approx}|${settings.rating}|${settings.myElo}`;
+    const key = `${avg}|${finished}|${approx}|${settings.rating}|${settings.myElo}|${settings.ratingLow}|${settings.ratingHigh}`;
     if (!force && key === lastKey && old.length === 1 && old[0].isConnected) return;
     old.forEach((b) => b.remove());
     drawPanel(teams, avg, finished, approx);
@@ -462,6 +490,42 @@
     chrome.storage.local.set({ ratingSeen: now });
   }
 
+  // Your usual HLTV range: the 10th to 90th percentile of your last 30 games, so one freak game
+  // either way doesn't stretch it. Read from Karasu's public stats API (the same query its profile
+  // page runs) when you open your own profile, at most every 5 minutes.
+  const API = "https://api.karasu.live/v1/graphql";
+  const RANGE_QUERY = `query ($s: bigint!) { v_player_match_map_hltv(where: { steam_id: { _eq: $s } },
+    order_by: { match: { started_at: desc_nulls_last } }, limit: 30) { hltv_rating } }`;
+  let rangeFetchedAt = 0;
+  const pctl = (sorted, p) => {
+    const i = (sorted.length - 1) * p, a = Math.floor(i), b = Math.ceil(i);
+    return sorted[a] + (sorted[b] - sorted[a]) * (i - a);
+  };
+  const r2 = (x) => Math.round(Math.min(2.5, Math.max(0.3, x)) * 100) / 100;
+  async function rememberMyRange() {
+    const id = location.pathname.match(/^\/players\/(\d+)/)?.[1];
+    if (!id || Date.now() - rangeFetchedAt < 5 * 60000 || !onMyProfile()) return;
+    rangeFetchedAt = Date.now();
+    try {
+      const res = await fetch(API, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: RANGE_QUERY, variables: { s: id } }) });
+      const rows = (await res.json())?.data?.v_player_match_map_hltv || [];
+      const xs = rows.map((r) => Number(r.hltv_rating)).filter(Number.isFinite).sort((a, b) => a - b);
+      if (xs.length < 5) return;
+      const low = r2(pctl(xs, 0.1)), high = r2(pctl(xs, 0.9));
+      if (low === settings.ratingLow && high === settings.ratingHigh) return;
+      settings.ratingLow = low; settings.ratingHigh = high;
+      chrome.storage.sync.set({ ratingLow: low, ratingHigh: high });
+    } catch { /* offline or Karasu changed its API: keep the last range */ }
+  }
+
+  // [low, high] if known; the average is kept inside it.
+  function usualRange() {
+    const lo = Number(settings.ratingLow), hi = Number(settings.ratingHigh), r = settings.rating;
+    if (!settings.ratingAuto || !(lo > 0) || !(hi > 0) || hi < lo) return null;
+    return [Math.min(lo, r), Math.max(hi, r)];
+  }
+
   // Karasu is a single-page app: re-check when the page changes, at most ~4 times a second.
   let pending = false;
   new MutationObserver((records) => {
@@ -472,7 +536,7 @@
   }).observe(document.body, { childList: true, subtree: true, characterData: true });
 
   chrome.storage.local.get({ [SB_KEY]: {} }, (v) => { saved = v[SB_KEY] || {}; refresh(true); });
-  chrome.storage.sync.get({ on: true, rating: 1.0, ratingAuto: false, myElo: null }, (v) => { settings = v; refresh(true); });
+  chrome.storage.sync.get({ on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null }, (v) => { settings = v; refresh(true); });
   chrome.storage.onChanged.addListener((c, area) => {
     if (area !== "sync") return;
     for (const k of Object.keys(c)) settings[k] = c[k].newValue;
