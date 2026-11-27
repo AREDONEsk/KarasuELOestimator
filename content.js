@@ -6,6 +6,15 @@
   let settings = { on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null };
   let lastKey = "";
 
+  // After the extension is reloaded or updated, this copy of the script keeps running in tabs that
+  // were already open but can no longer reach chrome.storage ("Extension context invalidated").
+  // Every storage write goes through save(), which does nothing then instead of throwing.
+  const alive = () => { try { return !!chrome.runtime?.id; } catch { return false; } };
+  const save = (area, data) => {
+    if (!alive()) return;
+    try { chrome.storage[area].set(data); } catch { /* extension reloaded meanwhile */ }
+  };
+
 
   // ---------- reading the page ----------
   const ELO_INLINE = /^(\d{1,3}(?:[ ,.'\u00a0\u2009\u202f]?\d{3})*)\s*elo$/i;
@@ -94,7 +103,7 @@
     saved[id] = { at: Date.now(), rows };
     const ids = Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at);
     for (const old of ids.slice(SB_KEEP)) delete saved[old];
-    chrome.storage.local.set({ [SB_KEY]: saved });
+    save("local", { [SB_KEY]: saved });
   }
 
   // [avgTeam0, avgTeam1] from the live or saved scoreboard, matched to teams by player name,
@@ -403,6 +412,7 @@
   }
 
   function refresh(force) {
+    if (!alive()) return;
     const old = document.querySelectorAll(`[${BOX}]`);
     rememberMyElo();
     rememberMyRating();
@@ -453,10 +463,10 @@
     const now = Date.now();
     if (v !== settings.myElo) {
       settings.myElo = v;
-      chrome.storage.sync.set({ myElo: v });
+      save("sync", { myElo: v });
     } else if (now - seenWritten < 60000) return;
     seenWritten = now;
-    chrome.storage.local.set({ myEloSeen: now });
+    save("local", { myEloSeen: now });
   }
 
   // Your name, from the sidebar block: <div class="truncate min-w-0"><span>AREDONE</span></div>.
@@ -493,10 +503,10 @@
     if (r !== settings.rating || !settings.ratingAuto) {
       settings.rating = r;
       settings.ratingAuto = true;
-      chrome.storage.sync.set({ rating: r, ratingAuto: true });
+      save("sync", { rating: r, ratingAuto: true });
     } else if (now - ratingSeenWritten < 60000) return;
     ratingSeenWritten = now;
-    chrome.storage.local.set({ ratingSeen: now });
+    save("local", { ratingSeen: now });
   }
 
   // Your usual HLTV range: the 10th to 90th percentile of your last 30 games, so one freak game
@@ -524,7 +534,7 @@
       const low = r2(pctl(xs, 0.1)), high = r2(pctl(xs, 0.9));
       if (low === settings.ratingLow && high === settings.ratingHigh) return;
       settings.ratingLow = low; settings.ratingHigh = high;
-      chrome.storage.sync.set({ ratingLow: low, ratingHigh: high });
+      save("sync", { ratingLow: low, ratingHigh: high });
     } catch { /* offline or Karasu changed its API: keep the last range */ }
   }
 
@@ -536,10 +546,7 @@
   }
 
   // Karasu is a single-page app: re-check when the page changes, at most ~4 times a second.
-  // After the extension is reloaded or updated, this copy of the script keeps running in tabs that
-  // were already open but can no longer reach chrome.storage ("Extension context invalidated").
-  // Stop it quietly then; the fresh copy takes over when the tab is reloaded.
-  const alive = () => { try { return !!chrome.runtime?.id; } catch { return false; } };
+  // Stop quietly once this copy has been orphaned (see alive() at the top); the fresh copy takes over when the tab is reloaded.
   let pending = false;
   const watcher = new MutationObserver((records) => {
     if (!alive()) { watcher.disconnect(); return; }

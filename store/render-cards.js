@@ -9,7 +9,7 @@ const path = require("path");
   await page.addInitScript(() => {
     const sync = { on: true, rating: 1.05, ratingAuto: true, myElo: 1646, ratingLow: 0.78, ratingHigh: 1.36 };
     const area = (data) => ({ get: (d, cb) => cb({ ...d, ...Object.fromEntries(Object.keys(d).filter((k) => k in data).map((k) => [k, data[k]])) }), set: () => {} });
-    window.chrome = { storage: { sync: area(sync), local: area({}), onChanged: { addListener() {} } } };
+    window.chrome = { runtime: { id: "demo" }, storage: { sync: area(sync), local: area({}), onChanged: { addListener() {} } } };
   });
   await page.goto("file://" + path.join(__dirname, "match-demo.html"));
   await page.addScriptTag({ path: path.join(__dirname, "..", "model.js") });
