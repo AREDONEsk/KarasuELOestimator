@@ -77,5 +77,5 @@ globalThis.KarasuEloModel = (() => {
     };
   }
 
-  return { estimate, winChance, preMatchAvg, level, levels: LEVELS };
+  return { estimate, winChance, preMatchAvg, level, levels: LEVELS, FLAME_RATING };
 })();

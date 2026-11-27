@@ -233,6 +233,7 @@
     .w .meter i { background: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,.55); }
     .l .meter i { background: #f87171; box-shadow: 0 0 10px rgba(248,113,113,.55); }
     .meter.rng b { width: 6px; height: 6px; margin: -3px 0 0 -3px; box-shadow: 0 0 0 2px #0f1116; }
+    .fire { margin-left: 5px; letter-spacing: 0; font-size: 11px; filter: drop-shadow(0 0 4px rgba(251,146,60,.7)); }
     .big .to { font-size: 14px; font-weight: 700; color: #7a7b86; margin: 0 4px; }
     .ends { display: flex; justify-content: space-between; font-size: 10px; font-weight: 500; color: #7a7b86;
       font-variant-numeric: tabular-nums; }
@@ -297,7 +298,7 @@
   // A win or loss tile. With your usual rating range known, the big number is the range of
   // Elo from your usual bad game to your usual good game, the meter highlights that band and
   // a small dot marks your average. Without it, one number and a dot at your average.
-  function tile(kind, label, sign, at, worst, best, usual) {
+  function tile(kind, label, sign, at, worst, best, usual, flame) {
     const t = h("div", `tile ${kind}`);
     const big = h("div", "big");
     const m = h("div", "meter");
@@ -312,7 +313,13 @@
       band.style.width = `${Math.max(Math.abs(p2 - p1), 2)}%`;
       m.append(band);
     } else big.textContent = `${sign}${at}`;
-    t.append(h("div", "lbl", label), big);
+    const lbl = h("div", "lbl", label);
+    if (flame) {
+      const f = h("span", "fire", "🔥");
+      f.title = `Flame game (HLTV ${M.FLAME_RATING}+): the win is worked out as a 2.00 rating`;
+      lbl.append(f);
+    }
+    t.append(lbl, big);
     const dot = h("b");
     dot.style.left = `${pos(at, worst, best)}%`;
     dot.title = `At your average: ${sign}${at}`;
@@ -361,7 +368,9 @@
 
     const tiles = h("div", "tiles");
     // Win: a bad game gains least, a great game most. Loss: a great game loses least.
-    const tw = tile("w", "If you win", "+", now.win, bad.win, great.win, range && { lo: lo.win, hi: hi.win });
+    // 🔥 when your average, or the top of your usual range, reaches the flame threshold.
+    const flame = (range ? range[1] : r) >= M.FLAME_RATING;
+    const tw = tile("w", "If you win", "+", now.win, bad.win, great.win, range && { lo: lo.win, hi: hi.win }, flame);
     const tl = tile("l", "If you lose", "−", now.loss, bad.loss, great.loss, range && { lo: lo.loss, hi: hi.loss });
     const me = myElo();
     if (me !== null && !finished) { tw.append(proj(me, now.win)); tl.append(proj(me, -now.loss)); }
