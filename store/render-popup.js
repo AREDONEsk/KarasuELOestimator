@@ -13,7 +13,7 @@ const shots = [
     await page.addInitScript((sync) => {
       const local = { myEloSeen: Date.now() - 3 * 60000, ratingSeen: Date.now() - 3 * 60000 };
       const area = (data) => ({ get: (d, cb) => cb({ ...d, ...Object.fromEntries(Object.keys(d).filter((k) => k in data).map((k) => [k, data[k]])) }), set: () => {} });
-      window.chrome = { storage: { sync: area(sync), local: area(local), onChanged: { addListener() {} } } };
+      window.chrome = { runtime: { id: "demo" }, storage: { sync: area(sync), local: area(local), onChanged: { addListener() {} } } };
     }, s.sync);
     await page.goto("file://" + path.join(__dirname, "..", "popup.html"));
     await page.addStyleTag({ content: "*, *::before, *::after { animation: none !important; transition: none !important; }" });
