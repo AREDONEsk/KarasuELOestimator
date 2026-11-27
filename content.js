@@ -106,24 +106,46 @@
     save("local", { [SB_KEY]: saved });
   }
 
-  // [avgTeam0, avgTeam1] from the live or saved scoreboard, matched to teams by player name,
-  // or null if this match's scoreboard hasn't been seen yet.
+  // { avg: [avgTeam0, avgTeam1], byName: Map(player name -> pre-match Elo) } from the live or saved
+  // scoreboard, matched to teams by player name, or null if this match's scoreboard hasn't been seen yet.
   function scoreboardPre(teams) {
     const live = readScoreboardRows();
     const rows = live.length ? live : saved[matchId()]?.rows;
     if (!rows) return null;
     const names = teams.map((t) => namesIn(t.card));
     const pre = [[], []];
+    const byName = new Map();
     for (const row of rows) {
       // The team whose longest player name appears in this row (longest, so "mls" can't steal a longer name's row).
-      let best = -1, bestLen = 0;
+      let best = -1, bestLen = 0, bestName = "";
       names.forEach((list, i) => list.forEach((n) => {
-        if (n.length > bestLen && row.text.includes(n)) { best = i; bestLen = n.length; }
+        if (n.length > bestLen && row.text.includes(n)) { best = i; bestLen = n.length; bestName = n; }
       }));
-      if (best >= 0) pre[best].push(row.pre);
+      if (best >= 0) { pre[best].push(row.pre); byName.set(bestName, row.pre); }
     }
     if (pre.some((p) => !p.length)) return null;
-    return pre.map((p) => p.reduce((a, b) => a + b, 0) / p.length);
+    return { avg: pre.map((p) => p.reduce((a, b) => a + b, 0) / p.length), byName };
+  }
+
+  // Each player in one overview card: name, shown Elo, and Karasu's own last-30 HLTV rating with
+  // how many games it covers, from
+  //   <li class="match-overview__player"> ... <button class="match-overview__player-name">Name</button>
+  //   ... 1,525 Elo ... <dl class="match-overview__history" aria-label="Based on 30 completed matches, ...">
+  //   <div class="match-overview__rating"><dt>Rating</dt><dd>1.50</dd></div>
+  function playersIn(card) {
+    const out = [];
+    const names = namesIn(card);
+    const rows = card.querySelectorAll(".match-overview__player, .match-overview__roster > li");
+    [...new Set(rows)].forEach((li, i) => {
+      const elo = elosIn(li)[0];
+      if (elo === undefined) return;
+      const name = li.querySelector(".match-overview__player-name")?.textContent.trim() || names[i] || "";
+      const rating = parseFloat(li.querySelector(".match-overview__rating dd")?.textContent.replace(",", ".") || "");
+      const hist = li.querySelector(".match-overview__history");
+      const games = parseInt((hist?.getAttribute("aria-label") || hist?.title || "").match(/(\d+)\s+(?:completed\s+|rated\s+)?match/i)?.[1] ?? "", 10);
+      out.push({ name, elo, rating: rating > 0 && rating < 5 ? rating : NaN, games });
+    });
+    return out.slice(0, 5);
   }
 
   // Preferred: Karasu's match overview has one <article class="match-overview__team"> per team.
@@ -134,6 +156,7 @@
       header: card.querySelector("header.match-overview__heading") || card.firstElementChild,
       name: (card.querySelector("h2, h3") || {}).textContent?.trim() || "Team",
       elos: elosIn(card.querySelector(".match-overview__roster") || card).slice(0, 5),
+      players: playersIn(card),
       card,
     }));
     return teams.every((t) => t.header && t.elos.length) ? teams : null;
@@ -248,6 +271,29 @@
       font-variant-numeric: tabular-nums; }
     .foot { margin-top: 9px; font-size: 10px; font-weight: 500; color: #62636e; }
     .foot b { color: #a1a1aa; font-weight: 600; }
+    .sub { font-size: 10.5px; font-weight: 600; color: #8a8b96; margin-top: 2px; }
+    .sub b { font-weight: 800; }
+    .avg small.fsub { display: block; margin-top: 2px; }
+    .up-t { color: #4ade80; } .dn-t { color: #f87171; }
+    .chips { display: flex; gap: 6px; margin: 10px 0 2px; }
+    .chip { position: relative; flex: 1; min-width: 0; padding: 6px 7px 7px; border-radius: 8px; box-sizing: border-box;
+      background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.06); font-variant-numeric: tabular-nums; }
+    .chip.you { border-color: color-mix(in srgb, var(--lc) 45%, transparent); }
+    .chip.carry { border-color: rgba(251,191,36,.45); background: rgba(251,191,36,.06); }
+    .chip .cn { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; color: #e7e7ea; }
+    .chip .nm { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chip .crown { position: absolute; top: 31px; right: 8px; font-size: 14px; }
+    .chip .cw { font-size: 15px; font-weight: 800; margin-top: 2px; letter-spacing: -.01em; }
+    .chip .ce { font-size: 9.5px; font-weight: 600; color: #7a7b86; margin-top: 1px; line-height: 1.35; }
+    .chip .ce .hl { color: #d4d4d8; font-weight: 700; } .chip .ce .hl.hot { color: #fbbf24; } .chip .ce .hl.cold { color: #8a8b96; }
+    .chip .mb { position: relative; height: 3px; border-radius: 2px; margin-top: 5px; background: rgba(255,255,255,.07); overflow: hidden; }
+    .chip .mb i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+    .mhex { position: relative; flex: none; width: 17px; height: 19px;
+      filter: drop-shadow(0 0 4px color-mix(in srgb, var(--lc) 45%, transparent)); }
+    .mhex svg { display: block; width: 100%; height: 100%; }
+    .mhex path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3.5; }
+    .mhex b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 9px; font-weight: 800; }
+    .legend { margin-top: 6px; }
     @media (prefers-reduced-motion: reduce) { .card, .split i { animation: none; } }`;
 
   const h = (tag, cls, txt) => {
@@ -339,7 +385,58 @@
     return t;
   }
 
-  function buildCard(team, ownAvg, enemyAvg, finished, approx) {
+  // Small level hexagon, like the big one in your strip.
+  function miniHex(lv) {
+    const hex = h("span", "mhex");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 42 46");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", HEX);
+    svg.append(path);
+    hex.append(svg, h("b", "", lv.next ? lv.label.replace("Level ", "") : "★"));
+    return hex;
+  }
+
+  // One chip per player: level, name, how much win chance they add vs a team-average player
+  // (using HLTV form), their Elo and last-30 HLTV. 👑 on the team's biggest carry.
+  function playerChips(form) {
+    const wrap = h("div", "chips");
+    const me = myName();
+    const top = form.players.reduce((a, b) => (b.impact > a.impact ? b : a), form.players[0]);
+    for (const p of form.players) {
+      const lv = M.level(p.pre);
+      const isMe = !!me && p.name === me;
+      const chip = h("div", "chip");
+      if (isMe) chip.classList.add("you");
+      if (p === top && p.impact > 0) { chip.classList.add("carry"); chip.append(h("span", "crown", "👑")); }
+      chip.style.setProperty("--lc", lv.color);
+      const n = h("div", "cn");
+      n.append(miniHex(lv), h("span", "nm", p.name));
+      const imp = Math.round(p.impact * 10) / 10;
+      const w = h("div", `cw ${imp >= 0 ? "up-t" : "dn-t"}`, `${imp >= 0 ? "+" : "−"}${Math.abs(imp).toFixed(1)}%`);
+      const e = h("div", "ce", `${Math.round(p.pre).toLocaleString()} Elo`);
+      e.append(h("br"));
+      if (Number.isFinite(p.rating)) {
+        e.append("HLTV ", h("b", `hl${p.rating >= 1.25 ? " hot" : p.rating < 0.95 ? " cold" : ""}`, p.rating.toFixed(2)));
+        // Few games: the rating is pulled toward 1.00, so say how many it rests on.
+        if (Number.isFinite(p.games) && p.games < M.FORM_FULL_GAMES) e.append(` · ${p.games}g`);
+      } else e.append("HLTV –");
+      const mb = h("div", "mb");
+      const bar = h("i");
+      const frac = Math.min(1, Math.abs(p.vsAvg) / 200) * 50;
+      bar.style.cssText = p.vsAvg >= 0 ? `left:50%;width:${frac}%;background:#4ade80` : `right:50%;width:${frac}%;background:#f87171`;
+      mb.append(bar);
+      chip.title = `${p.name}: ${Number.isFinite(p.rating) ? `HLTV ${p.rating.toFixed(2)}` : "no HLTV rating"}`
+        + `${Number.isFinite(p.games) ? ` over ${p.games} game${p.games === 1 ? "" : "s"}` : ""}`
+        + `${Number.isFinite(p.games) && p.games < M.FORM_FULL_GAMES ? ` (counted as ${M.formRating(p.rating, p.games).toFixed(2)}: few games)` : ""}`
+        + ` · form Elo ${Math.round(p.eff).toLocaleString()} · bar = form vs team average`;
+      chip.append(n, w, e, mb);
+      wrap.append(chip);
+    }
+    return wrap;
+  }
+
+  function buildCard(team, ownAvg, enemyAvg, finished, approx, form) {
     const card = h("div", "card");
     const r = settings.rating;
     const now = M.estimate(ownAvg, enemyAvg, r);
@@ -348,11 +445,21 @@
     const range = usualRange();
     const lo = range && M.estimate(ownAvg, enemyAvg, range[0]);
     const hi = range && M.estimate(ownAvg, enemyAvg, range[1]);
-    const pct = Math.round(now.chance * 100);
+    // The big win chance uses HLTV form when Karasu shows ratings; the win/lose tiles stay on plain
+    // Elo, because Karasu works out the Elo change from plain Elo averages.
+    const eloPct = Math.round(now.chance * 100);
+    const pct = form ? Math.round(M.winChance(form.own, form.enemy) * 100) : eloPct;
     if (pct < 50) card.classList.add("bad");
 
     const left = h("div");
     left.append(h("div", "lbl", "Win chance"), h("div", "pct", `${pct}%`));
+    if (form) {
+      const d = pct - eloPct;
+      const sub = h("div", "sub", `Elo only ${eloPct}% · HLTV form `);
+      sub.append(h("b", d >= 0 ? "up-t" : "dn-t", `${d >= 0 ? "+" : "−"}${Math.abs(d)}%`));
+      sub.title = "Win chance with each player's Elo adjusted for their last-30 HLTV rating (0.10 HLTV ≈ 50 Elo)";
+      left.append(sub);
+    }
     const avg = h("div", "avg");
     const diff = Math.round(ownAvg - enemyAvg);
     const lv = M.level(ownAvg);
@@ -367,6 +474,10 @@
     tagRow.append(pill);
     avg.append(h("div", "lbl", "Team avg"), num, tagRow,
                h("small", "", `${diff >= 0 ? "+" : ""}${diff} vs enemy`));
+    if (form) {
+      const fd = Math.round(form.own - form.enemy);
+      avg.append(h("small", "fsub", `form avg ${Math.round(form.own)} · ${fd >= 0 ? "+" : ""}${fd} vs enemy`));
+    }
     const head = h("div", "head");
     head.append(left, avg);
 
@@ -389,14 +500,21 @@
     if (range) foot.append("Your usual HLTV ", h("b", "", `${range[0].toFixed(2)}–${range[1].toFixed(2)}`),
       " · dot = your ", h("b", "", r.toFixed(2)), " average · ends = 0.6 to 1.69 game");
     else foot.append("At your ", h("b", "", r.toFixed(2)), " HLTV rating · ends = 0.6 to 1.69 game");
-    card.append(h("div", "team", team.name), head, split, tiles, foot);
+    card.append(h("div", "team", team.name), head, split, tiles);
+    if (form && form.players.length) {
+      card.append(playerChips(form));
+      const legend = h("div", "foot legend", "Impact = Elo + last-30 HLTV form (0.10 HLTV ≈ 50 Elo) · ");
+      legend.append(h("b", "", "👑"), " = biggest carry");
+      card.append(legend);
+    }
+    card.append(foot);
     if (approx) card.append(h("div", "note", "Match finished: approximate, using players' current Elo. Open the Scoreboard once, then come back here for the exact pre-match numbers."));
     else if (finished) card.append(h("div", "note", "Match finished: using each player's Elo from before the match."));
     return card;
   }
 
   // One panel with both teams, placed just above Karasu's overview section.
-  function drawPanel(teams, avg, finished, approx) {
+  function drawPanel(teams, avg, finished, approx, forms) {
     const section = document.querySelector("section.match-overview");
     if (!section) return;
     const host = document.createElement("div");
@@ -405,10 +523,41 @@
     const root = host.attachShadow({ mode: "open" });
     root.append(h("style", "", CSS));
     const grid = h("div", "grid");
-    grid.append(buildCard(teams[0], avg[0], avg[1], finished, approx), buildCard(teams[1], avg[1], avg[0], finished, approx));
+    grid.append(buildCard(teams[0], avg[0], avg[1], finished, approx, forms && forms[0]),
+                buildCard(teams[1], avg[1], avg[0], finished, approx, forms && forms[1]));
     if (myElo() !== null) root.append(meStrip(myElo()));
     root.append(grid);
     section.insertAdjacentElement("beforebegin", host);
+  }
+
+  // HLTV form for both teams, or null when Karasu shows no ratings at all.
+  // Each player's Elo is their pre-match Elo when the scoreboard gave it; otherwise their shown Elo,
+  // shifted so the team still averages `avg`. Team form average = avg + the mean form bonus.
+  function teamForms(teams, avg, sb) {
+    if (!teams.some((t) => t.players.some((p) => Number.isFinite(p.rating)))) return null;
+    const bonus = (p) => M.formElo(0, p.rating, p.games);
+    const base = teams.map((t, i) => {
+      const ps = t.players;
+      if (!ps.length) return { own: avg[i], players: [] };
+      const shift = avg[i] - ps.reduce((s, p) => s + p.elo, 0) / ps.length;
+      const players = ps.map((p) => {
+        const pre = sb?.byName.get(p.name) ?? p.elo + shift;
+        return { ...p, pre, eff: pre + bonus(p) };
+      });
+      return { own: avg[i] + players.reduce((s, p) => s + bonus(p), 0) / players.length, players };
+    });
+    return base.map((f, i) => {
+      const enemy = base[1 - i].own;
+      const chance = M.winChance(f.own, enemy);
+      const n = f.players.length;
+      const players = f.players.map((p) => ({
+        ...p,
+        vsAvg: p.eff - f.own,
+        // Win chance this player adds compared with a team-average player in their place.
+        impact: (chance - M.winChance(f.own - (p.eff - f.own) / n, enemy)) * 100,
+      }));
+      return { own: f.own, enemy, players };
+    });
   }
 
   function refresh(force) {
@@ -424,14 +573,16 @@
     // Finished match: rebuild pre-match Elo from the scoreboard. If it can't be read, fall back
     // to the overview's (current) Elo and mark the estimate approximate.
     const shownAvg = (t) => t.elos.reduce((a, b) => a + b, 0) / t.elos.length;
-    const pre = finished ? scoreboardPre(teams) : null;
-    const exact = !!pre;
-    const avg = pre || teams.map(shownAvg);
+    const sb = finished ? scoreboardPre(teams) : null;
+    const exact = !!sb;
+    const avg = sb ? sb.avg : teams.map(shownAvg);
     const approx = finished && !exact;
-    const key = `${avg}|${finished}|${approx}|${settings.rating}|${settings.myElo}|${settings.ratingLow}|${settings.ratingHigh}`;
+    const forms = teamForms(teams, avg, sb);
+    const key = `${avg}|${finished}|${approx}|${settings.rating}|${settings.myElo}|${settings.ratingLow}|${settings.ratingHigh}`
+      + `|${myName()}|${teams.map((t) => t.players.map((p) => `${p.name}:${p.elo}:${p.rating}:${p.games}`).join(",")).join(";")}`;
     if (!force && key === lastKey && old.length === 1 && old[0].isConnected) return;
     old.forEach((b) => b.remove());
-    drawPanel(teams, avg, finished, approx);
+    drawPanel(teams, avg, finished, approx, forms);
     lastKey = key;
   }
 
