@@ -77,5 +77,18 @@ globalThis.KarasuEloModel = (() => {
     };
   }
 
-  return { estimate, winChance, preMatchAvg, level, levels: LEVELS, FLAME_RATING };
+  // HLTV form: a player's Elo plus 50 for every 0.10 of last-30 HLTV rating above 1.00
+  // (a 1.30 player counts as +150, a 0.80 player as -100). Players with fewer than 10 rated games
+  // are pulled toward 1.00 in proportion (2 games at 2.04 count as 1.21), so a short hot streak
+  // can't swing a whole team. A missing rating counts as 1.00. The 500 weight is a first guess.
+  const FORM_WEIGHT = 500;
+  const FORM_FULL_GAMES = 10;
+  function formRating(rating, games) {
+    if (!Number.isFinite(rating)) return 1;
+    const w = Number.isFinite(games) ? Math.min(1, Math.max(0, games) / FORM_FULL_GAMES) : 1;
+    return 1 + (rating - 1) * w;
+  }
+  const formElo = (elo, rating, games) => elo + FORM_WEIGHT * (formRating(rating, games) - 1);
+
+  return { estimate, winChance, preMatchAvg, level, levels: LEVELS, FLAME_RATING, FORM_FULL_GAMES, formRating, formElo };
 })();
