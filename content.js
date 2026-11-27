@@ -527,13 +527,19 @@
   }
 
   // Karasu is a single-page app: re-check when the page changes, at most ~4 times a second.
+  // After the extension is reloaded or updated, this copy of the script keeps running in tabs that
+  // were already open but can no longer reach chrome.storage ("Extension context invalidated").
+  // Stop it quietly then; the fresh copy takes over when the tab is reloaded.
+  const alive = () => { try { return !!chrome.runtime?.id; } catch { return false; } };
   let pending = false;
-  new MutationObserver((records) => {
+  const watcher = new MutationObserver((records) => {
+    if (!alive()) { watcher.disconnect(); return; }
     if (records.every((r) => r.target.closest && r.target.closest(`[${BOX}]`))) return;
     if (pending) return;
     pending = true;
-    setTimeout(() => { pending = false; refresh(false); }, 250);
-  }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    setTimeout(() => { pending = false; if (alive()) refresh(false); }, 250);
+  });
+  watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
 
   chrome.storage.local.get({ [SB_KEY]: {} }, (v) => { saved = v[SB_KEY] || {}; refresh(true); });
   chrome.storage.sync.get({ on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null }, (v) => { settings = v; refresh(true); });

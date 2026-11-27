@@ -44,7 +44,10 @@
     toast("Match accepted. Get ready to join the server!", true);
   }
 
+  // After the extension is reloaded, the old copy of this script stops (the new one takes over on tab reload).
+  const alive = () => { try { return !!chrome.runtime?.id; } catch { return false; } };
   function scan() {
+    if (!alive()) { observer.disconnect(); clearInterval(timer); return; }
     if (!cfg.autoAccept) return;
     for (const b of document.querySelectorAll(BUTTON)) {
       if (!handled.has(b) && usable(b)) { handle(b); return; }
@@ -57,10 +60,11 @@
     queued = true;
     setTimeout(() => { queued = false; scan(); }, 100);
   };
-  new MutationObserver(queueScan).observe(document.documentElement, {
+  const observer = new MutationObserver(queueScan);
+  observer.observe(document.documentElement, {
     childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "disabled", "aria-disabled"],
   });
-  setInterval(scan, 1000); // safety net: timers keep running in background tabs
+  const timer = setInterval(scan, 1000); // safety net: timers keep running in background tabs
 
   chrome.storage.sync.get(DEFAULTS, (v) => { cfg = v; scan(); });
   chrome.storage.onChanged.addListener((c, area) => {
