@@ -1,16 +1,47 @@
 const M = globalThis.KarasuEloModel;
+const $ = (id) => document.getElementById(id);
 const rating = document.getElementById("rating");
 const val = document.getElementById("val");
 const clean = (v) => Math.round(Math.min(2.5, Math.max(0.3, Number(v) || 1)) * 100) / 100;
 
-function show(r) {
-  val.textContent = r.toFixed(2);
-  const e = M.estimate(1000, 1000, r); // an even match
-  document.getElementById("exw").textContent = `+${e.win}`;
-  document.getElementById("exl").textContent = `−${e.loss}`;
+// "+15" or "+15 to +22" (lo/hi in either order).
+function amount(el, sign, a, b) {
+  const [x, y] = [a, b].sort((p, q) => p - q);
+  if (b === undefined || x === y) { el.textContent = `${sign}${a}`; return; }
+  const to = document.createElement("span");
+  to.className = "to";
+  to.textContent = "to";
+  el.replaceChildren(`${sign}${x}`, to, `${sign}${y}`);
 }
 
-const $ = (id) => document.getElementById(id);
+// range = [low, high] of your usual HLTV rating (10th–90th percentile of your last 30 games),
+// or null when it isn't known (then one number and the slider, as before).
+const MIN_R = 0.3, MAX_R = 2.5;
+const at = (x) => `${((x - MIN_R) / (MAX_R - MIN_R)) * 100}%`;
+function show(r, range) {
+  const e = M.estimate(1000, 1000, r); // an even match
+  rating.hidden = !!range;
+  $("hbar").hidden = !range;
+  $("ratingLbl").textContent = range ? "Your HLTV rating" : "Your average HLTV rating";
+  rating.closest(".card").classList.toggle("rng", !!range);
+  if (!range) {
+    val.textContent = r.toFixed(2);
+    amount($("exw"), "+", e.win);
+    amount($("exl"), "−", e.loss);
+    return;
+  }
+  const avg = document.createElement("small");
+  avg.textContent = `avg ${r.toFixed(2)}`;
+  val.replaceChildren(`${range[0].toFixed(2)}–${range[1].toFixed(2)}`, avg);
+  $("hband").style.left = at(range[0]);
+  $("hband").style.width = `calc(${at(range[1])} - ${at(range[0])})`;
+  $("hdot").style.left = at(r);
+  $("hdot").title = `Your average: ${r.toFixed(2)}`;
+  const lo = M.estimate(1000, 1000, range[0]), hi = M.estimate(1000, 1000, range[1]);
+  amount($("exw"), "+", lo.win, hi.win);
+  amount($("exl"), "−", lo.loss, hi.loss);
+}
+
 const ACC = { autoAccept: false, acceptDelay: 2 };
 const num = (v, lo, hi, d) => Math.min(hi, Math.max(lo, Number(v) === 0 ? 0 : Number(v) || d));
 
@@ -112,17 +143,19 @@ chrome.storage.onChanged.addListener((c) => { if (c.myElo || c.myEloSeen) loadRa
 // The rating comes from your profile ("Last 30 games" average) once you've opened it;
 // until then you can set it yourself.
 function loadRating() {
-  chrome.storage.sync.get({ rating: 1.0, ratingAuto: false }, (v) => chrome.storage.local.get({ ratingSeen: 0 }, (l) => {
+  chrome.storage.sync.get({ rating: 1.0, ratingAuto: false, ratingLow: null, ratingHigh: null }, (v) => chrome.storage.local.get({ ratingSeen: 0 }, (l) => {
     rating.value = v.rating;
     rating.disabled = v.ratingAuto;
-    show(clean(v.rating));
+    const r = clean(v.rating), lo = Number(v.ratingLow), hi = Number(v.ratingHigh);
+    // Same rule as the match cards: only with an auto rating, and the average kept inside the band.
+    show(r, v.ratingAuto && lo > 0 && hi >= lo ? [Math.min(clean(lo), r), Math.max(clean(hi), r)] : null);
     $("ratingSrc").textContent = v.ratingAuto
       ? `From your profile · last 30 games${l.ratingSeen ? " · " + ago(l.ratingSeen) : ""}`
       : "Open My Stats on karasu.live to fill this in";
   }));
 }
 loadRating();
-chrome.storage.onChanged.addListener((c) => { if (c.rating || c.ratingAuto || c.ratingSeen) loadRating(); });
+chrome.storage.onChanged.addListener((c) => { if (c.rating || c.ratingAuto || c.ratingSeen || c.ratingLow || c.ratingHigh) loadRating(); });
 
 chrome.storage.sync.get({ ...ACC }, (v) => {
   $("autoAccept").checked = v.autoAccept;
@@ -136,5 +169,5 @@ $("acceptDelay").addEventListener("change", (e) => {
   e.target.value = Math.round(num(e.target.value, 0, 10, 2) * 2) / 2;
   chrome.storage.sync.set({ acceptDelay: Number(e.target.value) });
 });
-rating.addEventListener("input", () => show(clean(rating.value)));
+rating.addEventListener("input", () => show(clean(rating.value), null));
 rating.addEventListener("change", () => chrome.storage.sync.set({ rating: clean(rating.value) }));
