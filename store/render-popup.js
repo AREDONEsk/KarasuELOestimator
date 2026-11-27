@@ -3,7 +3,7 @@
 const { chromium } = require("playwright");
 const path = require("path");
 const shots = [
-  { name: "popup-closed", sync: { myElo: 1646, rating: 1.05, ratingAuto: true, ratingLow: 0.78, ratingHigh: 1.36, autoAccept: true, acceptDelay: 2 }, open: false },
+  { name: "popup-closed", sync: { myElo: 1646, rating: 1.14, ratingAuto: true, ratingLow: 0.86, ratingHigh: 1.74, autoAccept: true, acceptDelay: 2 }, open: false },
   { name: "popup-levels", sync: { myElo: 2530, rating: 1.2, ratingAuto: true, ratingLow: 0.91, ratingHigh: 1.52, autoAccept: false, acceptDelay: 2 }, open: true },
 ];
 (async () => {
