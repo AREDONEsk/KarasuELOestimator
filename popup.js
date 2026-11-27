@@ -17,6 +17,14 @@ function amount(el, sign, a, b) {
 // range = [low, high] of your usual HLTV rating (10th–90th percentile of your last 30 games),
 // or null when it isn't known (then one number and the slider, as before).
 const MIN_R = 0.3, MAX_R = 2.5;
+// A small 🔥 (Karasu's flame: a win at HLTV 1.69+ counts as a 2.00 rating).
+function fire(el) {
+  const f = document.createElement("span");
+  f.className = "fire";
+  f.textContent = "🔥";
+  f.title = `Flame game (HLTV ${M.FLAME_RATING}+): the win is worked out as a 2.00 rating`;
+  el.append(f);
+}
 const at = (x) => `${((x - MIN_R) / (MAX_R - MIN_R)) * 100}%`;
 function show(r, range) {
   const e = M.estimate(1000, 1000, r); // an even match
@@ -28,6 +36,7 @@ function show(r, range) {
     val.textContent = r.toFixed(2);
     amount($("exw"), "+", e.win);
     amount($("exl"), "−", e.loss);
+    if (r >= M.FLAME_RATING) { fire(val); fire($("exw")); }
     return;
   }
   const avg = document.createElement("small");
@@ -40,6 +49,8 @@ function show(r, range) {
   const lo = M.estimate(1000, 1000, range[0]), hi = M.estimate(1000, 1000, range[1]);
   amount($("exw"), "+", lo.win, hi.win);
   amount($("exl"), "−", lo.loss, hi.loss);
+  if (r >= M.FLAME_RATING) fire(val);
+  if (range[1] >= M.FLAME_RATING) fire($("exw"));
 }
 
 const ACC = { autoAccept: false, acceptDelay: 2 };
