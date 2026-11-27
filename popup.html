@@ -55,6 +55,21 @@
   .rnext { font-size: 10.5px; color: #7a7b86; }
   #ratingSrc { margin-top: 6px; }
   input[type=range]:disabled { opacity: .55; }
+  /* usual HLTV range: band from your 10th to 90th percentile game, small dot at your average */
+  .hbar { position: relative; height: 6px; margin: 16px 0 10px; border-radius: 4px; background: rgba(255,255,255,.08); }
+  .hbar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--g);
+    box-shadow: 0 0 10px rgba(74,222,128,.5); }
+  .hbar b { position: absolute; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 2px #0d0f13; }
+  .val { white-space: nowrap; }
+  .val small { font-size: 11px; font-weight: 600; color: #7a7b86; margin-left: 4px; }
+  .rng .val { font-size: 18px; }
+  .rng .ex div { padding: 7px 8px; }
+  .rng .ex b { font-size: 15px; }
+  .ex { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ex .lbl { letter-spacing: .06em; }
+  .ex b .to { display: inline; font-size: 11px; font-weight: 700; color: #7a7b86; margin: 0 3px; }
+  [hidden] { display: none !important; }
   .auto { font-size: 11px; color: #7a7b86; font-variant-numeric: tabular-nums; }
   /* Ultimate: electric shimmer, lightning flashes, sparks */
   .rname { position: relative; display: inline-block; }
@@ -202,8 +217,9 @@
 
 
   <div class="card">
-    <div class="row"><div class="lbl">Your average HLTV rating</div><div class="val" id="val">1.00</div></div>
+    <div class="row"><div class="lbl" id="ratingLbl">Your average HLTV rating</div><div class="val" id="val">1.00</div></div>
     <input type="range" id="rating" min="0.3" max="2.5" step="0.05">
+    <div class="hbar" id="hbar" hidden><i id="hband"></i><b id="hdot"></b></div>
     <div class="ticks"><span>0.3 · bad</span><span>great · 2.5</span></div>
     <div class="auto" id="ratingSrc">Open My Stats on karasu.live to fill this in</div>
     <div class="ex">
