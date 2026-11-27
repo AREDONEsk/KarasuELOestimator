@@ -358,7 +358,8 @@
     const big = h("div", "big");
     const m = h("div", "meter");
     if (usual) {
-      const [a, b] = [usual.lo, usual.hi].sort((x, y) => x - y);
+      // Same order as the bar: your weak game (left end side) first, your strong game second.
+      const a = usual.lo, b = usual.hi;
       if (a === b) big.textContent = `${sign}${a}`;
       else big.append(`${sign}${a}`, h("span", "to", "to"), `${sign}${b}`);
       m.classList.add("rng");
@@ -440,9 +441,13 @@
     const card = h("div", "card");
     const r = settings.rating;
     const now = M.estimate(ownAvg, enemyAvg, r);
-    const bad = M.estimate(ownAvg, enemyAvg, RANGE.bad);
-    const great = M.estimate(ownAvg, enemyAvg, RANGE.great);
     const range = usualRange();
+    // Bar ends: a 0.6 and a 1.69 game, widened to take in your usual range and average, so the
+    // range in the big number never sits outside the bar.
+    const lowR = Math.min(RANGE.bad, r, ...(range ? [range[0]] : []));
+    const highR = Math.max(RANGE.great, r, ...(range ? [range[1]] : []));
+    const bad = M.estimate(ownAvg, enemyAvg, lowR);
+    const great = M.estimate(ownAvg, enemyAvg, highR);
     const lo = range && M.estimate(ownAvg, enemyAvg, range[0]);
     const hi = range && M.estimate(ownAvg, enemyAvg, range[1]);
     // The big win chance uses HLTV form when Karasu shows ratings; the win/lose tiles stay on plain
@@ -498,8 +503,8 @@
 
     const foot = h("div", "foot");
     if (range) foot.append("Your usual HLTV ", h("b", "", `${range[0].toFixed(2)}–${range[1].toFixed(2)}`),
-      " · dot = your ", h("b", "", r.toFixed(2)), " average · ends = 0.6 to 1.69 game");
-    else foot.append("At your ", h("b", "", r.toFixed(2)), " HLTV rating · ends = 0.6 to 1.69 game");
+      " · dot = your ", h("b", "", r.toFixed(2)), ` average · ends = ${lowR.toFixed(2)} to ${highR.toFixed(2)} game`);
+    else foot.append("At your ", h("b", "", r.toFixed(2)), ` HLTV rating · ends = ${lowR.toFixed(2)} to ${highR.toFixed(2)} game`);
     card.append(h("div", "team", team.name), head, split, tiles);
     if (form && form.players.length) {
       card.append(playerChips(form));
