@@ -836,9 +836,9 @@
   // same HLTV-form Elo the match room uses: Elo + 500 x (rating − 1).
   const PBOX = "data-kee-profile";
   const PCSS = `
-    :host { display: block; margin-top: 10px; font-family: inherit; }
+    :host { display: block; margin-top: 8px; font-family: inherit; }
     .est { --c: #a1a1aa; --c2: rgba(161,161,170,.10);
-      position: relative; overflow: hidden; padding: 11px 13px 10px 15px; border-radius: 10px; color: #e7e7ea;
+      position: relative; overflow: hidden; padding: 9px 11px 9px 13px; border-radius: 10px; color: #e7e7ea;
       background: radial-gradient(120% 160% at 0% 0%, var(--c2), transparent 55%), linear-gradient(180deg, #16181f, #0f1116);
       border: 1px solid rgba(255,255,255,.07);
       box-shadow: 0 8px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
@@ -851,15 +851,15 @@
 
     .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
     .tag { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: #8a8b96; font-weight: 700; }
-    .go { margin-top: 3px; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em; white-space: nowrap; }
+    .go { margin-top: 2px; font-size: 16px; font-weight: 800; color: #fff; letter-spacing: -.01em; white-space: nowrap; }
     .go .ar { color: var(--c); text-shadow: 0 0 12px var(--c); margin-right: 4px; }
     .go small { font-size: 12px; font-weight: 600; color: #a1a1aa; margin-left: 6px; }
     .pace { text-align: right; flex: none; }
-    .pace b { display: block; font-size: 22px; font-weight: 800; line-height: 1; color: var(--c);
+    .pace b { display: block; font-size: 20px; font-weight: 800; line-height: 1; color: var(--c);
       text-shadow: 0 0 18px var(--c2); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
     .pace small { font-size: 10px; color: #6f707b; font-weight: 600; }
 
-    .track { display: flex; align-items: center; gap: 9px; margin: 11px 0 2px; }
+    .track { display: flex; align-items: center; gap: 8px; margin: 8px 0 1px; }
     .hex { --lc: #8a8b96; position: relative; width: 24px; height: 26px; flex: none; }
     .hex svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--lc) 45%, transparent)); }
     .hex path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3; }
@@ -878,8 +878,8 @@
     .scale .mid { color: #a1a1aa; }
     .scale .mid i { font-style: normal; color: var(--c); }
 
-    .pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
-    .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border-radius: 6px;
+    .pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 5px;
       background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
       font-size: 10.5px; font-weight: 600; color: #a1a1aa; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .pill b { color: #fff; font-weight: 800; }
@@ -1023,14 +1023,14 @@
     const pill = (...parts) => { const x = h("span", "pill"); x.append(...parts); return x; };
     const pills = h("div", "pills");
     pills.append(
-      pill("HLTV", h("b", p.rating >= 1.25 ? "hot" : p.rating < 0.95 ? "cold" : "", p.rating.toFixed(2)),
-        ...(range ? [`· usual ${range[0].toFixed(2)}–${range[1].toFixed(2)}`] : [])),
+      Object.assign(pill("HLTV", h("b", p.rating >= 1.25 ? "hot" : p.rating < 0.95 ? "cold" : "", p.rating.toFixed(2))),
+        { title: range ? `Last-30 average; usual range ${range[0].toFixed(2)}–${range[1].toFixed(2)}` : "Last-30 average" }),
       wlPill,
-      pill(h("b", "", `${Math.round(winRate * 100)}%`), "wins"),
+      pill(h("b", "", `${Math.round(winRate * 100)}%`), "winrate"),
     );
     if (p.gained !== null) {
       const act = Math.round((p.gained / games) * 10) / 10;
-      pills.append(pill("Actual", h("b", act > 0 ? "up" : act < 0 ? "dn" : "", signed(act)), "/ game"));
+      pills.append(pill("Actual", h("b", act > 0 ? "up" : act < 0 ? "dn" : "", signed(act)), "per game"));
     }
     const fe = Math.round(M.formElo(p.elo, p.rating, games));
     const flv = M.level(fe);
