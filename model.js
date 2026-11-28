@@ -90,5 +90,14 @@ globalThis.KarasuEloModel = (() => {
   }
   const formElo = (elo, rating, games) => elo + FORM_WEIGHT * (formRating(rating, games) - 1);
 
-  return { estimate, winChance, preMatchAvg, level, levels: LEVELS, FLAME_RATING, FORM_FULL_GAMES, formRating, formElo };
+  // Form trend: the last-10 HLTV average against the last-30 one. One game swings a 10-game
+  // average a lot, so it only counts as rising or falling past ±0.07, and needs 15+ games.
+  const TREND_STEP = 0.07;
+  function formTrend(last10, last30, games) {
+    if (!Number.isFinite(last10) || !Number.isFinite(last30) || !(games >= 15)) return null;
+    const d = last10 - last30;
+    return { dir: d >= TREND_STEP ? "up" : d <= -TREND_STEP ? "down" : "flat", d, last10, last30 };
+  }
+
+  return { estimate, winChance, preMatchAvg, level, levels: LEVELS, FLAME_RATING, FORM_FULL_GAMES, formRating, formElo, formTrend };
 })();
