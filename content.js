@@ -856,6 +856,7 @@
   // Another player's usual HLTV range (10th–90th percentile of their last 30 games), like yours.
   // Resolves true when it newly loaded.
   const playerRanges = new Map(); // Steam ID -> [low, high], or null when unknown
+  const playerTrends = new Map(); // Steam ID -> M.formTrend() from the same 30 games
   async function loadPlayerRange(steam) {
     if (!steam || playerRanges.has(steam)) return false;
     playerRanges.set(steam, null);
@@ -863,7 +864,10 @@
       const res = await fetch(API, { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ query: RANGE_QUERY, variables: { s: steam } }) });
       const rows = (await res.json())?.data?.v_player_match_map_hltv || [];
-      const xs = rows.map((r) => Number(r.hltv_rating)).filter(Number.isFinite).sort((a, b) => a - b);
+      const recent = rows.map((r) => Number(r.hltv_rating)).filter(Number.isFinite); // newest first
+      const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+      if (recent.length) playerTrends.set(steam, M.formTrend(mean(recent.slice(0, 10)), mean(recent), recent.length));
+      const xs = [...recent].sort((a, b) => a - b);
       if (xs.length < 5) return false;
       playerRanges.set(steam, [r2(pctl(xs, 0.1)), r2(pctl(xs, 0.9))]);
       return true;
@@ -921,6 +925,17 @@
   // Karasu's own player rows ("rdo1337 · 1 548 Elo · W L L L L"). Next to each name goes a small
   // level hexagon for the level their form Elo would be, and after the Elo their form Elo: Elo + 500 × (last-30
   // HLTV − 1), the same form the win chance uses, with the difference in green or red.
+  // Form trend arrow: ↗ rising / ↘ falling / → flat, last-10 HLTV against last-30.
+  const TREND = { up: ["↗", "#4ade80", "rising"], down: ["↘", "#f87171", "falling"], flat: ["→", "#8a8b96", "steady"] };
+  function trendArrow(t) {
+    const [ch, color, word] = TREND[t.dir];
+    const x = h("span", "tr", ch);
+    x.style.color = color;
+    x.title = `Form ${word}: last 10 games ${t.last10.toFixed(2)} HLTV vs ${t.last30.toFixed(2)} over the last 30 (${t.d >= 0 ? "+" : "−"}${Math.abs(t.d).toFixed(2)})`;
+    return x;
+  }
+  const trendOf = (c) => (c ? M.formTrend(c.r10, c.r, c.n) : null);
+
   const RBOX = "data-kee-row";
   const RCSS = `
     :host { display: inline-flex; align-items: center; vertical-align: middle; font-family: inherit; }
@@ -938,6 +953,7 @@
       background: color-mix(in srgb, var(--pc) 12%, transparent); border: 1px solid color-mix(in srgb, var(--pc) 35%, transparent);
       font-size: 10.5px; font-weight: 800; line-height: 1.4; }
     .pty svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+    .tr { font-weight: 800; font-size: 1.2em; line-height: 1; cursor: help; }
   `;
   // Last-30 HLTV average and how many games it covers, from one overview row.
   function rowStats(li) {
@@ -985,6 +1001,7 @@
   function decorateRows() {
     const rows = document.querySelectorAll("article.match-overview__team .match-overview__player, article.match-overview__team .match-overview__roster > li");
     if (!settings.on) { document.querySelectorAll(`[${RBOX}]`).forEach((x) => x.remove()); rows.forEach((li) => tintStats(li, false)); return; }
+    const missing = [];
     for (const li of new Set(rows)) {
       tintStats(li, true);
       const elo = elosIn(li)[0];
@@ -1014,17 +1031,23 @@
       else li.querySelector(`[${RBOX}="party"]`)?.remove();
       const rank = li.querySelector(".match-overview__rank");
       if (!rank || !hasForm) { li.querySelector(`[${RBOX}="form"]`)?.remove(); continue; }
-      rowDeco(li, rank, "form", String(fe), () => {
+      // Trend from the shared batched cache (one request for the whole match, see loadForms).
+      const steam = name ? lineupInfo(name.textContent.trim())?.steam : null;
+      if (steam && !lbFresh(String(steam))) missing.push(String(steam));
+      const tr = steam ? trendOf(lbCache?.[steam]) : null;
+      rowDeco(li, rank, "form", `${fe}|${tr ? tr.dir + tr.d.toFixed(2) : ""}`, () => {
         const f = h("span", "f", "Form ");
         const v = h("b", "", fe.toLocaleString());
         v.style.color = M.level(fe).color;
         f.append(v);
+        if (tr) f.append(trendArrow(tr));
         f.title = `Form Elo: ${elo.toLocaleString()} Elo + 500 × (HLTV ${rating.toFixed(2)} − 1)`
           + (Number.isFinite(games) && games < M.FORM_FULL_GAMES ? `, damped for only ${games} game${games === 1 ? "" : "s"}` : "")
           + ` · would be ${M.level(fe).label}`;
         return f;
       });
     }
+    if (missing.length && lbCache) loadForms(missing);
   }
 
   // ---------- leaderboard: a Form column ----------
@@ -1039,16 +1062,19 @@
   const LB_BATCH = 50; // Karasu shows 50 rows a page
   const LB_SORT = "lbSortForm";
   let lbSort = false; // sort the page's rows by form (remembered)
-  let lbCache = null; // steam ID -> { r: avg HLTV or null, n: games, t: fetched at }
+  let lbCache = null; // steam ID -> { r: last-30 avg HLTV or null, n: games, r10: last-10 avg or null, t: fetched at }
   const lbAsking = new Set();
   let lbFailedAt = 0;
-  const lbFresh = (s) => lbCache?.[s] && Date.now() - lbCache[s].t < LB_TTL;
-  async function loadLbForms(ids) {
+  const lbFresh = (s) => lbCache?.[s] && "r10" in lbCache[s] && Date.now() - lbCache[s].t < LB_TTL;
+  // Also used by the match rows (all 10 players in one request) for the form trend arrow.
+  async function loadForms(ids) {
     const want = ids.filter((s) => /^\d{5,20}$/.test(s) && !lbFresh(s) && !lbAsking.has(s)).slice(0, LB_BATCH);
     if (!want.length || Date.now() - lbFailedAt < 60000) return;
     want.forEach((s) => lbAsking.add(s));
     const query = `query {${want.map((s, i) => ` p${i}: v_player_match_map_hltv_aggregate(where: { steam_id: { _eq: "${s}" } },`
-      + ` order_by: { match: { started_at: desc_nulls_last } }, limit: 30) { aggregate { count avg { hltv_rating } } }`).join("")} }`;
+      + ` order_by: { match: { started_at: desc_nulls_last } }, limit: 30) { aggregate { count avg { hltv_rating } } }`
+      + ` q${i}: v_player_match_map_hltv_aggregate(where: { steam_id: { _eq: "${s}" } },`
+      + ` order_by: { match: { started_at: desc_nulls_last } }, limit: 10) { aggregate { avg { hltv_rating } } }`).join("")} }`;
     try {
       const res = await fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query }) });
       const data = (await res.json())?.data;
@@ -1057,12 +1083,14 @@
       want.forEach((s, i) => {
         const a = data[`p${i}`]?.aggregate;
         const r = Number(a?.avg?.hltv_rating);
-        lbCache[s] = { r: a?.count && Number.isFinite(r) ? Math.round(r * 1000) / 1000 : null, n: a?.count || 0, t: now };
+        const r10 = Number(data[`q${i}`]?.aggregate?.avg?.hltv_rating);
+        lbCache[s] = { r: a?.count && Number.isFinite(r) ? Math.round(r * 1000) / 1000 : null, n: a?.count || 0,
+          r10: a?.count && Number.isFinite(r10) ? Math.round(r10 * 1000) / 1000 : null, t: now };
       });
       // Keep the stored cache small: drop anything older than a day.
       for (const [s, v] of Object.entries(lbCache)) if (now - v.t > 24 * 3600000) delete lbCache[s];
       save("local", { [LB_KEY]: lbCache });
-      if (alive()) decorateLeaderboard();
+      if (alive()) { decorateLeaderboard(); decorateRows(); }
     } catch { lbFailedAt = Date.now(); } finally { want.forEach((s) => lbAsking.delete(s)); }
   }
 
@@ -1100,7 +1128,7 @@
       const c = lbCache[steam];
       if (!lbFresh(steam)) missing.push(steam);
       tr.dataset.keeFe = c && c.r !== null ? Math.max(0, Math.round(M.formElo(elo, c.r, c.n))) : "";
-      const key = c ? `${steam}|${elo}|${c.r}|${c.n}` : `${steam}|${elo}|…`;
+      const key = c ? `${steam}|${elo}|${c.r}|${c.n}|${c.r10}` : `${steam}|${elo}|…`;
       if (td && td.dataset.key === key && td.previousElementSibling === cells[after]) continue;
       td?.remove();
       td = cells[after].cloneNode(false);
@@ -1127,6 +1155,8 @@
         const v = h("span", "", fe.toLocaleString());
         v.style.color = lv.color;
         box.append(x, v);
+        const tr = trendOf(c);
+        if (tr) box.append(trendArrow(tr));
         root.append(style, box);
         td.title = `Form Elo: ${elo.toLocaleString()} Elo + 500 × (HLTV ${c.r.toFixed(2)} − 1)`
           + (c.n < M.FORM_FULL_GAMES ? `, damped for only ${c.n} game${c.n === 1 ? "" : "s"}` : ` over the last ${c.n} games`)
@@ -1136,7 +1166,7 @@
       cells[after].after(td);
     }
     sortLeaderboard(table);
-    if (missing.length) loadLbForms(missing);
+    if (missing.length) loadForms(missing);
   }
 
   // Sorting by form only moves the 50 rows already on the page (sorting all 11,000 players would
@@ -1212,6 +1242,7 @@
     .pill b.bad { color: #f87171; } .pill b.good { color: #4ade80; } .pill b.gold { color: #fbbf24; }
     .pill b.up { color: #4ade80; } .pill b.dn { color: #f87171; }
     .pill .hex { width: 14px; height: 15px; }
+    .pill .tr { font-weight: 800; font-size: 12px; line-height: 1; cursor: help; }
     .pill.warn { border-color: rgba(251,191,36,.35); color: #fbbf24; }
     @media (prefers-reduced-motion: reduce) { .est, .rail .ghost { animation: none; } }
   `;
@@ -1260,7 +1291,7 @@
     const steam = location.pathname.match(/^\/players\/(\d+)/)?.[1] || null;
     if (steam && !playerRanges.has(steam)) loadPlayerRange(steam).then((got) => { if (got && alive()) { profileKey = ""; refreshProfile(); } });
     const usual = steam ? playerRanges.get(steam) || null : null;
-    const key = `${location.pathname}|${p.elo}|${p.wins}|${p.losses}|${p.rating}|${p.gained}|${usual}`;
+    const key = `${location.pathname}|${p.elo}|${p.wins}|${p.losses}|${p.rating}|${p.gained}|${usual}|${playerTrends.get(steam)?.dir}`;
     if (key === profileKey && old.length === 1 && p.standing.contains(old[0])) return;
     old.forEach((b) => b.remove());
     profileKey = key;
@@ -1355,7 +1386,8 @@
     }
     const fe = Math.max(0, Math.round(M.formElo(p.elo, p.rating, games)));
     const flv = M.level(fe);
-    pills.append(pill("Form", h("b", "", fe.toLocaleString()), hexOf(flv, false, 22.5)));
+    const ftr = steam ? playerTrends.get(steam) : null;
+    pills.append(pill("Form", h("b", "", fe.toLocaleString()), hexOf(flv, false, 22.5), ...(ftr ? [trendArrow(ftr)] : [])));
     if (few) pills.append(Object.assign(pill(`Only ${games} game${games === 1 ? "" : "s"} · damped`), { className: "pill warn" }));
 
     box.title = `Estimate from the last ${games} games: an even match each game, won ${Math.round(winRate * 100)}% of the time at a ${p.rating.toFixed(2)} HLTV rating`
