@@ -282,7 +282,6 @@
     .chip .cn { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; color: #e7e7ea; }
     .chip .nm { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .chip .hr { display: flex; align-items: center; gap: 4px; }
-    .chip .fg { color: #62636e; }
     .chip .hr .ht { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .chip .flag { margin-left: auto; flex: none; font-size: 12px; line-height: 1;
       font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
@@ -433,8 +432,6 @@
       const imp = Math.round(p.impact * 10) / 10;
       const w = h("div", `cw ${imp >= 0 ? "up-t" : "dn-t"}`, `${imp >= 0 ? "+" : "−"}${Math.abs(imp).toFixed(1)}%`);
       const e = h("div", "ce", `${Math.round(p.pre).toLocaleString()} Elo`);
-      // Few games: the rating is pulled toward 1.00, so say how many it rests on.
-      if (Number.isFinite(p.rating) && Number.isFinite(p.games) && p.games < M.FORM_FULL_GAMES) e.append(h("span", "fg", ` · ${p.games}g`));
       // HLTV row, with the country flag at its right end.
       const hr = h("div", "hr");
       const ht = h("span", "ht");
