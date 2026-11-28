@@ -829,6 +829,40 @@
     return [Math.min(lo, r), Math.max(hi, r)];
   }
 
+  // A level hexagon with its number drawn inside the same SVG, centred on the digit's actual ink
+  // (measured with the page's font), so it sits dead centre whatever the font's spacing. `fs` is the
+  // font size in viewBox units (the hexagon is 42 x 46).
+  const inkCtx = document.createElement("canvas").getContext("2d");
+  const inkCache = new Map();
+  function inkBox(text, fs) {
+    const fam = getComputedStyle(document.body).fontFamily;
+    const key = `${fam}|${fs}|${text}`;
+    if (inkCache.has(key)) return inkCache.get(key);
+    inkCtx.font = `800 ${fs}px ${fam}`;
+    const m = inkCtx.measureText(text);
+    const box = { l: m.actualBoundingBoxLeft, r: m.actualBoundingBoxRight, a: m.actualBoundingBoxAscent, d: m.actualBoundingBoxDescent };
+    if (document.fonts?.status === "loaded") inkCache.set(key, box);
+    return box;
+  }
+  function hexSvg(lv, fs) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 42 46");
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", HEX);
+    const label = lv.next ? lv.label.replace("Level ", "") : "★";
+    const b = inkBox(label, fs);
+    const t = document.createElementNS(ns, "text");
+    t.setAttribute("x", (21 + (b.l - b.r) / 2).toFixed(2));
+    t.setAttribute("y", (23 + (b.a - b.d) / 2).toFixed(2));
+    t.setAttribute("font-size", fs);
+    t.setAttribute("font-weight", "800");
+    t.style.fill = "var(--lc)";
+    t.textContent = label;
+    svg.append(path, t);
+    return svg;
+  }
+
   // ---------- match overview rows: level badge by the name, form Elo by the Elo ----------
   // Karasu's own player rows ("rdo1337 · 1 548 Elo · W L L L L"). Next to each name goes a small
   // level hexagon for the level their form Elo would be, and after the Elo their form Elo: Elo + 500 × (last-30
@@ -841,8 +875,6 @@
     .hx { --lc: #8a8b96; position: relative; width: 17px; height: 19px; flex: none; }
     .hx svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--lc) 40%, transparent)); }
     .hx path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3.5; }
-    .hx b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 9px; font-weight: 800;
-      transform: translateY(.08em); } /* Karasu's font (Oxanium) sits ~0.7px high when centred */
     .f { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; white-space: nowrap;
       background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
       font-size: 11px; font-weight: 600; color: #8a8b96; font-variant-numeric: tabular-nums; line-height: 1.5; }
@@ -908,12 +940,7 @@
         const x = h("span", "hx");
         x.style.setProperty("--lc", lv.color);
         x.title = hasForm ? `Form level: ${lv.label} (form ${fe.toLocaleString()}, real ${M.level(elo).label})` : `${lv.label} · ${elo.toLocaleString()} Elo`;
-        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.setAttribute("viewBox", "0 0 42 46");
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", HEX);
-        svg.append(path);
-        x.append(svg, h("b", "", lv.next ? lv.label.replace("Level ", "") : "★"));
+        x.append(hexSvg(lv, 22));
         return x;
       });
       const rank = li.querySelector(".match-overview__rank");
@@ -966,8 +993,6 @@
     .hex { --lc: #8a8b96; position: relative; width: 24px; height: 26px; flex: none; }
     .hex svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--lc) 45%, transparent)); }
     .hex path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3; }
-    .hex b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 10.5px; font-weight: 800;
-      transform: translateY(.08em); } /* Karasu's font sits slightly high when centred */
     .hex.dim { opacity: .45; }
     .rail { position: relative; flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,.07); }
     .rail .now { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--lc, #8a8b96); opacity: .9; }
@@ -989,7 +1014,7 @@
     .pill b { color: #fff; font-weight: 800; }
     .pill b.bad { color: #f87171; } .pill b.good { color: #4ade80; } .pill b.gold { color: #fbbf24; }
     .pill b.up { color: #4ade80; } .pill b.dn { color: #f87171; }
-    .pill .hex { width: 14px; height: 15px; } .pill .hex b { font-size: 7.5px; }
+    .pill .hex { width: 14px; height: 15px; }
     .pill.warn { border-color: rgba(251,191,36,.35); color: #fbbf24; }
     @media (prefers-reduced-motion: reduce) { .est, .rail .ghost { animation: none; } }
   `;
@@ -1080,15 +1105,10 @@
     const lo = lv.min, hi = lv.next ? lv.next.at : Math.max(lv.min + 400, p.elo + 1);
     const at = (e) => Math.max(0, Math.min(100, ((e - lo) / (hi - lo)) * 100));
     const then = p.elo + t.perGame * PREVIEW_GAMES;
-    const hexOf = (l, dim) => {
+    const hexOf = (l, dim, fs = 18.5) => {
       const x = h("span", `hex${dim ? " dim" : ""}`);
       x.style.setProperty("--lc", l.color);
-      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("viewBox", "0 0 42 46");
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", HEX);
-      svg.append(path);
-      x.append(svg, h("b", "", l.next ? l.label.replace("Level ", "") : "★"));
+      x.append(hexSvg(l, fs));
       return x;
     };
     const track = h("div", "track");
@@ -1138,7 +1158,7 @@
     }
     const fe = Math.max(0, Math.round(M.formElo(p.elo, p.rating, games)));
     const flv = M.level(fe);
-    pills.append(pill("Form", h("b", "", fe.toLocaleString()), hexOf(flv, false)));
+    pills.append(pill("Form", h("b", "", fe.toLocaleString()), hexOf(flv, false, 22.5)));
     if (few) pills.append(Object.assign(pill(`Only ${games} game${games === 1 ? "" : "s"} · damped`), { className: "pill warn" }));
 
     box.title = `Estimate from the last ${games} games: an even match each game, won ${Math.round(winRate * 100)}% of the time at a ${p.rating.toFixed(2)} HLTV rating`
