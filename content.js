@@ -573,7 +573,7 @@
       let chips;
       const pick = (name, again) => {
         if (!again) setPicked(idx, name);
-        else if (pickedFor(idx) !== name || !card.isConnected) return;
+        else if ((pickedFor(idx) || first) !== name || !card.isConnected) return;
         who = whoFor(name);
         if (who && !again) loadPlayerRange(lineupInfo(who.name)?.steam).then((got) => got && pick(name, true));
         const next = rangeParts(ownAvg, enemyAvg, finished, who, meIn);
