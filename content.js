@@ -140,10 +140,7 @@
       const elo = elosIn(li)[0];
       if (elo === undefined) return;
       const name = li.querySelector(".match-overview__player-name")?.textContent.trim() || names[i] || "";
-      const rating = parseFloat(li.querySelector(".match-overview__rating dd")?.textContent.replace(",", ".") || "");
-      const hist = li.querySelector(".match-overview__history");
-      const games = parseInt((hist?.getAttribute("aria-label") || hist?.title || "").match(/(\d+)\s+(?:completed\s+|rated\s+)?match/i)?.[1] ?? "", 10);
-      out.push({ name, elo, rating: rating > 0 && rating < 5 ? rating : NaN, games });
+      out.push({ name, elo, ...rowStats(li) });
     });
     return out.slice(0, 5);
   }
@@ -439,7 +436,7 @@
       const e = h("div", "ce", `${Math.round(p.pre).toLocaleString()} Elo`);
       // Form Elo: Elo plus their last-30 HLTV form (the same number the win chance uses),
       // coloured by the level it would be, with the difference from their real Elo.
-      const fe = Math.round(p.eff), fd = fe - Math.round(p.pre);
+      const fe = Math.max(0, Math.round(p.eff)), fd = fe - Math.round(p.pre);
       const fr = h("div", "fr", "Form ");
       const fv = h("b", "fv", fe.toLocaleString());
       fv.style.color = M.level(fe).color;
@@ -660,6 +657,7 @@
     rememberMyRating();
     rememberMyRange();
     refreshProfile();
+    decorateRows();
     if (!settings.on) { old.forEach((b) => b.remove()); lastKey = ""; return; }
     rememberScoreboard();
     const { teams, finished } = readTeams();
@@ -840,6 +838,83 @@
     const lo = Number(settings.ratingLow), hi = Number(settings.ratingHigh), r = settings.rating;
     if (!settings.ratingAuto || !(lo > 0) || !(hi > 0) || hi < lo) return null;
     return [Math.min(lo, r), Math.max(hi, r)];
+  }
+
+  // ---------- match overview rows: level badge by the name, form Elo by the Elo ----------
+  // Karasu's own player rows ("rdo1337 · 1 548 Elo · W L L L L"). Next to each name goes a small
+  // level hexagon for their current Elo, and after the Elo their form Elo: Elo + 500 × (last-30
+  // HLTV − 1), the same form the win chance uses, with the difference in green or red.
+  const RBOX = "data-kee-row";
+  const RCSS = `
+    :host { display: inline-flex; align-items: center; vertical-align: middle; font-family: inherit; }
+    :host([data-kee-row="lv"]) { margin-left: 6px; }
+    :host([data-kee-row="form"]) { margin: 0 6px 0 7px; }
+    .hx { --lc: #8a8b96; position: relative; width: 17px; height: 19px; flex: none; }
+    .hx svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--lc) 40%, transparent)); }
+    .hx path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3.5; }
+    .hx b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 9px; font-weight: 800; }
+    .f { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; white-space: nowrap;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      font-size: 11px; font-weight: 600; color: #8a8b96; font-variant-numeric: tabular-nums; line-height: 1.5; }
+    .f b { font-weight: 800; } .f .u { color: #4ade80; } .f .d { color: #f87171; }
+  `;
+  // Last-30 HLTV average and how many games it covers, from one overview row.
+  function rowStats(li) {
+    const rating = parseFloat(li.querySelector(".match-overview__rating dd")?.textContent.replace(",", ".") || "");
+    const hist = li.querySelector(".match-overview__history");
+    const games = parseInt((hist?.getAttribute("aria-label") || hist?.title || "").match(/(\d+)\s+(?:completed\s+|rated\s+)?match/i)?.[1] ?? "", 10);
+    return { rating: rating > 0 && rating < 5 ? rating : NaN, games };
+  }
+  // Put (or keep) one decoration of `kind` right after `anchor`; rebuilt only when `key` changes.
+  function rowDeco(li, anchor, kind, key, build) {
+    let host = li.querySelector(`[${RBOX}="${kind}"]`);
+    if (host && host.dataset.key === key && host.previousElementSibling === anchor) return;
+    host?.remove();
+    host = document.createElement("span");
+    host.setAttribute(RBOX, kind);
+    host.dataset.key = key;
+    const root = host.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = RCSS;
+    root.append(style, build());
+    anchor.after(host);
+  }
+  function decorateRows() {
+    const rows = document.querySelectorAll("article.match-overview__team .match-overview__player, article.match-overview__team .match-overview__roster > li");
+    if (!settings.on) { document.querySelectorAll(`[${RBOX}]`).forEach((x) => x.remove()); return; }
+    for (const li of new Set(rows)) {
+      const elo = elosIn(li)[0];
+      if (elo === undefined) continue;
+      const lv = M.level(elo);
+      const name = li.querySelector(".match-overview__player-name");
+      if (name) rowDeco(li, name, "lv", lv.label, () => {
+        const x = h("span", "hx");
+        x.style.setProperty("--lc", lv.color);
+        x.title = `${lv.label} · ${elo.toLocaleString()} Elo`;
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 42 46");
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", HEX);
+        svg.append(path);
+        x.append(svg, h("b", "", lv.next ? lv.label.replace("Level ", "") : "★"));
+        return x;
+      });
+      const rank = li.querySelector(".match-overview__rank");
+      const { rating, games } = rowStats(li);
+      if (!rank || !Number.isFinite(rating)) { li.querySelector(`[${RBOX}="form"]`)?.remove(); continue; }
+      const fe = Math.max(0, Math.round(M.formElo(elo, rating, games))), fd = fe - elo;
+      rowDeco(li, rank, "form", `${fe}|${fd}`, () => {
+        const f = h("span", "f", "Form ");
+        const v = h("b", "", fe.toLocaleString());
+        v.style.color = M.level(fe).color;
+        f.append(v);
+        if (fd) f.append(h("span", fd > 0 ? "u" : "d", `${fd > 0 ? "+" : "−"}${Math.abs(fd)}`));
+        f.title = `Form Elo: ${elo.toLocaleString()} Elo + 500 × (HLTV ${rating.toFixed(2)} − 1)`
+          + (Number.isFinite(games) && games < M.FORM_FULL_GAMES ? `, damped for only ${games} game${games === 1 ? "" : "s"}` : "")
+          + ` · would be ${M.level(fe).label}`;
+        return f;
+      });
+    }
   }
 
   // ---------- profile page: where this player's form is taking them ----------
@@ -1046,7 +1121,7 @@
       const act = Math.round((p.gained / games) * 10) / 10;
       pills.append(pill("Actual", h("b", act > 0 ? "up" : act < 0 ? "dn" : "", signed(act)), "per game"));
     }
-    const fe = Math.round(M.formElo(p.elo, p.rating, games));
+    const fe = Math.max(0, Math.round(M.formElo(p.elo, p.rating, games)));
     const flv = M.level(fe);
     pills.append(pill("Form", h("b", "", fe.toLocaleString()), hexOf(flv, false)));
     if (few) pills.append(Object.assign(pill(`Only ${games} game${games === 1 ? "" : "s"} · damped`), { className: "pill warn" }));
@@ -1065,7 +1140,10 @@
   let pending = false;
   const watcher = new MutationObserver((records) => {
     if (!alive()) { watcher.disconnect(); return; }
-    if (records.every((r) => r.target.closest && r.target.closest(`[${BOX}]`))) return;
+    // Ignore changes inside our own boxes and the row decorations being added or removed.
+    const ours = (n) => n.nodeType === 1 && n.hasAttribute(RBOX);
+    if (records.every((r) => (r.target.closest && r.target.closest(`[${BOX}]`))
+      || ((r.addedNodes.length || r.removedNodes.length) && [...r.addedNodes, ...r.removedNodes].every(ours)))) return;
     if (pending) return;
     pending = true;
     setTimeout(() => { pending = false; if (alive()) refresh(false); }, 250);
