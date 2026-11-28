@@ -836,21 +836,61 @@
   // same HLTV-form Elo the match room uses: Elo + 500 x (rating − 1).
   const PBOX = "data-kee-profile";
   const PCSS = `
-    :host { display: block; margin-top: 8px; font-family: inherit; }
-    .est { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 10px; border-radius: 8px;
-      background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); color: #e7e7ea;
-      font-size: 12px; font-weight: 600; line-height: 1.3; animation: in .3s ease-out both; }
-    @keyframes in { from { opacity: 0; transform: translateY(-3px); } }
+    :host { display: block; margin-top: 10px; font-family: inherit; }
+    .est { --c: #a1a1aa; --c2: rgba(161,161,170,.10);
+      position: relative; overflow: hidden; padding: 11px 13px 10px 15px; border-radius: 10px; color: #e7e7ea;
+      background: radial-gradient(120% 160% at 0% 0%, var(--c2), transparent 55%), linear-gradient(180deg, #16181f, #0f1116);
+      border: 1px solid rgba(255,255,255,.07);
+      box-shadow: 0 8px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
+      font-size: 12px; font-weight: 600; line-height: 1.3; animation: in .35s ease-out both; }
+    .est.up { --c: #4ade80; --c2: rgba(74,222,128,.14); }
+    .est.dn { --c: #f87171; --c2: rgba(248,113,113,.14); }
+    .est::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: var(--c); box-shadow: 0 0 12px var(--c); }
+    @keyframes in { from { opacity: 0; transform: translateY(-4px); } }
+
+    .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
     .tag { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: #8a8b96; font-weight: 700; }
-    .go { font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; }
-    .go.up .ar { color: #4ade80; } .go.dn .ar { color: #f87171; } .go.eq .ar { color: #a1a1aa; }
-    .go b { font-weight: 800; }
-    .sub { flex-basis: 100%; font-size: 11px; font-weight: 500; color: #a1a1aa; font-variant-numeric: tabular-nums; }
-    .sub .up { color: #4ade80; } .sub .dn { color: #f87171; }
-    .form { margin-left: auto; font-size: 11px; font-weight: 600; color: #a1a1aa; white-space: nowrap; }
-    .form b { font-weight: 800; }
+    .go { margin-top: 3px; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em; white-space: nowrap; }
+    .go .ar { color: var(--c); text-shadow: 0 0 12px var(--c); margin-right: 4px; }
+    .go small { font-size: 12px; font-weight: 600; color: #a1a1aa; margin-left: 6px; }
+    .pace { text-align: right; flex: none; }
+    .pace b { display: block; font-size: 22px; font-weight: 800; line-height: 1; color: var(--c);
+      text-shadow: 0 0 18px var(--c2); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+    .pace small { font-size: 10px; color: #6f707b; font-weight: 600; }
+
+    .track { display: flex; align-items: center; gap: 9px; margin: 11px 0 2px; }
+    .hex { --lc: #8a8b96; position: relative; width: 24px; height: 26px; flex: none; }
+    .hex svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--lc) 45%, transparent)); }
+    .hex path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3; }
+    .hex b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 10.5px; font-weight: 800; }
+    .hex.dim { opacity: .45; }
+    .rail { position: relative; flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,.07); }
+    .rail .now { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--lc, #8a8b96); opacity: .9; }
+    .rail .ghost { position: absolute; top: 0; bottom: 0; border-radius: 4px;
+      background: repeating-linear-gradient(135deg, var(--c) 0 4px, color-mix(in srgb, var(--c) 35%, transparent) 4px 8px);
+      box-shadow: 0 0 10px var(--c2); animation: pulse 2.2s ease-in-out infinite; }
+    .rail .dot { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
+      background: #fff; box-shadow: 0 0 0 2px #0f1116, 0 0 8px rgba(255,255,255,.6); }
+    @keyframes pulse { 50% { opacity: .55; } }
+    .scale { display: flex; justify-content: space-between; margin: 3px 33px 0; font-size: 10px; font-weight: 600;
+      color: #6f707b; font-variant-numeric: tabular-nums; }
+    .scale .mid { color: #a1a1aa; }
+    .scale .mid i { font-style: normal; color: var(--c); }
+
+    .pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+    .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border-radius: 6px;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+      font-size: 10.5px; font-weight: 600; color: #a1a1aa; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .pill b { color: #fff; font-weight: 800; }
+    .pill b.hot { color: #fbbf24; } .pill b.cold { color: #8a8b96; }
+    .pill b.up { color: #4ade80; } .pill b.dn { color: #f87171; }
+    .pill .hex { width: 14px; height: 15px; } .pill .hex b { font-size: 7.5px; }
+    .pill.warn { border-color: rgba(251,191,36,.35); color: #fbbf24; }
+    @media (prefers-reduced-motion: reduce) { .est, .rail .ghost { animation: none; } }
   `;
   const MAX_GAMES = 200; // beyond this it says "200+ games"
+  const PREVIEW_GAMES = 10; // the striped part of the bar: where the next 10 games take you
 
   // Average Elo per game and where it leads, for a player at `elo` with this HLTV average and win rate.
   function profileTrend(elo, rating, winRate) {
@@ -906,33 +946,80 @@
     const root = host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
     style.textContent = PCSS;
-    const box = h("div", "est");
-    const go = h("div", `go ${t.target ? (t.target.up ? "up" : "dn") : "eq"}`);
-    if (t.target) {
-      const lb = h("b", "", t.target.label);
-      lb.style.color = M.level(t.target.up ? t.level.next.at : t.level.min - 1).color;
-      go.append(h("span", "ar", t.target.up ? "▲ " : "▼ "), lb,
-        t.target.games > MAX_GAMES ? ` in ${MAX_GAMES}+ games` : ` in ~${t.target.games} game${t.target.games === 1 ? "" : "s"}`);
-    } else go.append(h("span", "ar", "● "), `Holding ${t.level.label}`);
-    const fe = Math.round(M.formElo(p.elo, p.rating, games));
-    const flv = M.level(fe);
-    const form = h("div", "form", `Form ${fe.toLocaleString()} Elo · `);
-    const fb = h("b", "", flv.label);
-    fb.style.color = flv.color;
-    form.append(fb);
     const pg = Math.round(t.perGame * 10) / 10;
-    const sub = h("div", "sub");
-    sub.append(h("span", pg > 0 ? "up" : pg < 0 ? "dn" : "", `${pg > 0 ? "+" : pg < 0 ? "−" : "±"}${Math.abs(pg).toFixed(1)} Elo/game`),
-      ` at HLTV ${p.rating.toFixed(2)} and ${Math.round(winRate * 100)}% wins`
-      + (few ? ` (only ${games} game${games === 1 ? "" : "s"}, counted as ${useRating.toFixed(2)} and ${Math.round(useWin * 100)}%)` : "")
-      + ` (win +${t.win}, loss −${t.loss})`);
+    const signed = (x, d = 1) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${Math.abs(x).toFixed(d)}`;
+    const dir = t.target ? (t.target.up ? "up" : "dn") : "eq";
+    const box = h("div", `est ${dir}`);
+
+    // Head: where they're heading, and the Elo per game.
+    const head = h("div", "head");
+    const left = h("div");
+    const go = h("div", "go");
+    if (t.target) {
+      const lb = h("span", "", t.target.label);
+      lb.style.color = M.level(t.target.up ? t.level.next.at : t.level.min - 1).color;
+      go.append(h("span", "ar", t.target.up ? "▲" : "▼"), lb,
+        h("small", "", t.target.games > MAX_GAMES ? `in ${MAX_GAMES}+ games` : `in ~${t.target.games} game${t.target.games === 1 ? "" : "s"}`));
+    } else go.append(h("span", "ar", "●"), `Holding ${t.level.label}`);
+    left.append(h("div", "tag", "Level outlook"), go);
+    const pace = h("div", "pace");
+    pace.append(h("b", "", signed(pg)), h("small", "", "Elo / game"));
+    head.append(left, pace);
+
+    // Track: this level's band, with where they are now and (striped) where 10 games take them.
+    const lv = t.level;
+    const lo = lv.min, hi = lv.next ? lv.next.at : Math.max(lv.min + 400, p.elo + 1);
+    const at = (e) => Math.max(0, Math.min(100, ((e - lo) / (hi - lo)) * 100));
+    const then = p.elo + t.perGame * PREVIEW_GAMES;
+    const hexOf = (l, dim) => {
+      const x = h("span", `hex${dim ? " dim" : ""}`);
+      x.style.setProperty("--lc", l.color);
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 42 46");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", HEX);
+      svg.append(path);
+      x.append(svg, h("b", "", l.next ? l.label.replace("Level ", "") : "★"));
+      return x;
+    };
+    const track = h("div", "track");
+    const rail = h("div", "rail");
+    rail.style.setProperty("--lc", lv.color);
+    const now = h("i", "now");
+    now.style.width = `${at(Math.min(p.elo, then))}%`;
+    const ghost = h("i", "ghost");
+    ghost.style.left = `${at(Math.min(p.elo, then))}%`;
+    ghost.style.width = `${Math.abs(at(then) - at(p.elo))}%`;
+    const dot = h("i", "dot");
+    dot.style.left = `${at(p.elo)}%`;
+    rail.append(now, ghost, dot);
+    track.append(hexOf(lv, false), rail, lv.next ? hexOf(M.level(lv.next.at), true) : hexOf(lv, true));
+    const scale = h("div", "scale");
+    const mid = h("span", "mid", `${p.elo.toLocaleString()} now `);
+    mid.append(h("i", "", `→ ${Math.max(0, Math.round(then)).toLocaleString()}`), ` in ${PREVIEW_GAMES} games`);
+    scale.append(h("span", "", lo.toLocaleString()), mid, h("span", "", lv.next ? hi.toLocaleString() : ""));
+
+    // Pills: what it's based on.
+    const pill = (...parts) => { const x = h("span", "pill"); x.append(...parts); return x; };
+    const pills = h("div", "pills");
+    pills.append(
+      pill("HLTV", h("b", p.rating >= 1.25 ? "hot" : p.rating < 0.95 ? "cold" : "", p.rating.toFixed(2))),
+      pill(h("b", "", `${Math.round(winRate * 100)}%`), "wins"),
+      pill("Win", h("b", "up", `+${t.win}`), "· Loss", h("b", "dn", `−${t.loss}`)));
     if (p.gained !== null) {
       const act = Math.round((p.gained / games) * 10) / 10;
-      sub.append(` · actual last ${games}: ${act > 0 ? "+" : act < 0 ? "−" : "±"}${Math.abs(act).toFixed(1)}/game`);
+      pills.append(pill("Actual", h("b", act > 0 ? "up" : act < 0 ? "dn" : "", signed(act)), "/ game"));
     }
-    box.title = `Estimate from the last ${games} games: an even match each game, won ${Math.round(winRate * 100)}% of the time at a ${p.rating.toFixed(2)} HLTV rating.`
+    const fe = Math.round(M.formElo(p.elo, p.rating, games));
+    const flv = M.level(fe);
+    pills.append(pill("Form", h("b", "", fe.toLocaleString()), hexOf(flv, false)));
+    if (few) pills.append(Object.assign(pill(`Only ${games} game${games === 1 ? "" : "s"} · damped`), { className: "pill warn" }));
+
+    box.title = `Estimate from the last ${games} games: an even match each game, won ${Math.round(winRate * 100)}% of the time at a ${p.rating.toFixed(2)} HLTV rating`
+      + (few ? ` (few games, so counted as ${useRating.toFixed(2)} and ${Math.round(useWin * 100)}%)` : "")
+      + `. Striped bar: where ${PREVIEW_GAMES} more games at this pace would take you.`
       + ` Form Elo = Elo + 500 × (HLTV − 1), the same form the match-room win chance uses.`;
-    box.append(h("span", "tag", "Estimate"), go, form, sub);
+    box.append(head, track, scale, pills);
     root.append(style, box);
     p.standing.append(host);
   }
