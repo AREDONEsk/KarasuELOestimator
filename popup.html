@@ -184,6 +184,27 @@
     animation: shine 4s linear infinite; }
   .lv.l10 .hx { animation: flameb 2.6s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .lv .nm span, .lv .hx, #lvList.open { animation: none; } }
+  /* session tracker */
+  .ses .row .lbl { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .ses .row .auto { white-space: nowrap; }
+  .ses .live { width: 6px; height: 6px; border-radius: 50%; background: var(--g); box-shadow: 0 0 6px var(--g);
+    animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .sstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 9px; }
+  .sstats div { padding: 6px 8px; border-radius: 9px; background: rgba(255,255,255,.03); border: 1px solid var(--line); }
+  .sstats b { display: block; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sstats small { display: block; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: #8a8b96; font-weight: 700; }
+  .sstats .pos { color: var(--g); } .sstats .neg { color: var(--r); }
+  .sstats .wl i { font-style: normal; color: #62636e; margin: 0 2px; }
+  .sgraph { display: block; width: 100%; height: 64px; margin-top: 10px; overflow: visible; }
+  .sgraph .base { stroke: rgba(255,255,255,.18); stroke-dasharray: 3 3; stroke-width: 1; }
+  .sgraph .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .sgraph circle { stroke: #111319; stroke-width: 1.5; }
+  .sgraph text { font: 700 9px "Segoe UI", Inter, system-ui, sans-serif; fill: #7a7b86; }
+  .sfoot { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 10.5px; color: #7a7b86;
+    font-variant-numeric: tabular-nums; }
+  .sempty { margin-top: 6px; font-size: 11px; color: #7a7b86; }
+  @media (prefers-reduced-motion: reduce) { .ses .live { animation: none; } }
 </style></head>
 <body>
   <header>
@@ -218,6 +239,21 @@
   </button>
   <div class="card" id="lvList"></div>
 
+  <div class="card ses" id="sesCard">
+    <div class="row"><div class="lbl"><span class="live" id="sLive" hidden></span><span id="sLbl">Session</span></div>
+      <span class="auto" id="sSrc"></span></div>
+    <div id="sBody" hidden>
+      <div class="sstats">
+        <div><b id="sNet">0</b><small>Net Elo</small></div>
+        <div><b id="sWL" class="wl">0–0</b><small>W–L</small></div>
+        <div><b id="sH">–</b><small>Avg HLTV</small></div>
+      </div>
+      <svg class="sgraph" id="sGraph" viewBox="0 0 240 64" aria-label="Elo across the session"></svg>
+      <div class="sfoot"><span id="sGames"></span><span id="sElo"></span></div>
+    </div>
+    <div class="sempty" id="sEmpty">Open karasu.live while logged in to track your session</div>
+  </div>
+
 
   <div class="card">
     <div class="row"><div class="lbl" id="ratingLbl">Your average HLTV rating</div><div class="val" id="val">1.00</div></div>
@@ -241,5 +277,6 @@
   <p>Unofficial. Estimates are based on real Karasu matches and are usually within 1–2 Elo. Not affiliated with Karasu.</p>
 
   <script src="model.js"></script>
+  <script src="session.js"></script>
   <script src="popup.js"></script>
 </body></html>

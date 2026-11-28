@@ -3,7 +3,7 @@
   const BOX = "data-kee-box";
   const RANGE = { bad: 0.6, great: 1.69 };
 
-  let settings = { on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null };
+  let settings = { on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null, mySteam: null };
   let lastKey = "";
 
   // After the extension is reloaded or updated, this copy of the script keeps running in tabs that
@@ -681,6 +681,7 @@
     rememberMyElo();
     rememberMyRating();
     rememberMyRange();
+    rememberMySession();
     refreshProfile();
     decorateRows();
     decorateLeaderboard();
@@ -732,11 +733,37 @@
     if (v === null) return;
     const now = Date.now();
     if (v !== settings.myElo) {
+      if (settings.myElo != null) sessionDirty = true; // your Elo moved: a game just ended
       settings.myElo = v;
       save("sync", { myElo: v });
     } else if (now - seenWritten < 60000) return;
     seenWritten = now;
     save("local", { myEloSeen: now });
+  }
+
+  // Your Steam ID, from the sidebar's "My stats" link (or the address of your own profile), saved
+  // so the popup's session tracker knows whose games to show. The session cache is refreshed here
+  // at most every 2 minutes, and right away when your Elo changes (a game just ended).
+  let sessionAt = 0, sessionDirty = false;
+  function rememberMySteam() {
+    let id = null;
+    for (const a of document.querySelectorAll('a[href*="/players/"]')) {
+      if (/my stats/i.test(a.textContent)) { id = a.getAttribute("href").match(/\/players\/(\d+)/)?.[1]; break; }
+    }
+    if (!id && onMyProfile()) id = location.pathname.match(/^\/players\/(\d+)/)?.[1];
+    if (id && id !== settings.mySteam) { settings.mySteam = id; save("sync", { mySteam: id }); }
+    return settings.mySteam || null;
+  }
+  function rememberMySession() {
+    const steam = rememberMySteam();
+    const S = globalThis.KarasuSession;
+    if (!steam || !S) return;
+    const changed = sessionDirty;
+    if (!changed && Date.now() - sessionAt < S.FRESH) return;
+    sessionAt = Date.now(); sessionDirty = false;
+    // Karasu may take a few seconds to record a finished game, so after an Elo change ask again shortly.
+    S.load(steam, () => {}, changed);
+    if (changed) setTimeout(() => alive() && S.load(steam, () => {}, true), 20000);
   }
 
   // Your name, from the sidebar block: <div class="truncate min-w-0"><span>AREDONE</span></div>.
@@ -1415,7 +1442,7 @@
   watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
 
   chrome.storage.local.get({ [SB_KEY]: {}, [LB_KEY]: {}, [LB_SORT]: false }, (v) => { saved = v[SB_KEY] || {}; lbCache = v[LB_KEY] || {}; lbSort = !!v[LB_SORT]; refresh(true); });
-  chrome.storage.sync.get({ on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null }, (v) => { settings = v; refresh(true); });
+  chrome.storage.sync.get({ on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null, mySteam: null }, (v) => { settings = v; refresh(true); });
   chrome.storage.onChanged.addListener((c, area) => {
     if (area !== "sync") return;
     for (const k of Object.keys(c)) settings[k] = c[k].newValue;
