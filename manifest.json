@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Karasu ELO Estimator",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "description": "Unofficial. Win chance and estimated Elo gain/loss for both teams on karasu.live, plus optional auto-accept.",
   "icons": {
     "16": "icons/16.png",
