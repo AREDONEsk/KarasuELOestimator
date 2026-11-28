@@ -282,6 +282,8 @@
     .chip .cn { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; color: #e7e7ea; }
     .chip .nm { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .chip .hr { display: flex; align-items: center; gap: 4px; }
+    .chip .fr { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chip .fr .fv { font-weight: 800; } .chip .fr .fu { color: #4ade80; } .chip .fr .fdn { color: #f87171; }
     .chip .hr .ht { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .chip .flag { margin-left: auto; flex: none; font-size: 12px; line-height: 1;
       font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
@@ -435,6 +437,15 @@
       const imp = Math.round(p.impact * 10) / 10;
       const w = h("div", `cw ${imp >= 0 ? "up-t" : "dn-t"}`, `${imp >= 0 ? "+" : "−"}${Math.abs(imp).toFixed(1)}%`);
       const e = h("div", "ce", `${Math.round(p.pre).toLocaleString()} Elo`);
+      // Form Elo: Elo plus their last-30 HLTV form (the same number the win chance uses),
+      // coloured by the level it would be, with the difference from their real Elo.
+      const fe = Math.round(p.eff), fd = fe - Math.round(p.pre);
+      const fr = h("div", "fr", "Form ");
+      const fv = h("b", "fv", fe.toLocaleString());
+      fv.style.color = M.level(fe).color;
+      fr.append(fv);
+      if (fd) fr.append(h("span", fd > 0 ? "fu" : "fdn", ` ${fd > 0 ? "+" : "−"}${Math.abs(fd)}`));
+      e.append(fr);
       // HLTV row, with the country flag at its right end.
       const hr = h("div", "hr");
       const ht = h("span", "ht");
