@@ -143,10 +143,11 @@ globalThis.KarasuEloModel = (() => {
       .find((t) => re.test(t.querySelector("dt")?.textContent.trim() || ""))?.querySelector("dd");
     const wl = tile(/^wins\s*\/\s*losses$/i)?.firstChild?.textContent.match(/(\d+)\s*\/\s*(\d+)/);
     const rt = tile(/^rating$/i)?.textContent.match(/\d+\.\d+/);
+    const gained = tile(/^elo gained$/i)?.firstChild?.textContent.trim().replace("−", "-").match(/^[+-]?\d+/);
     if (!Number.isFinite(elo) || !wl || !rt) return null;
     const wins = +wl[1], losses = +wl[2];
     if (wins + losses === 0) return null;
-    return { standing, elo, wins, losses, rating: Number(rt[0]) };
+    return { standing, elo, wins, losses, rating: Number(rt[0]), gained: gained ? Number(gained[0]) : null };
   }
 
   let profileKey = "";
@@ -154,7 +155,7 @@ globalThis.KarasuEloModel = (() => {
     const old = document.querySelectorAll(`[${PBOX}]`);
     const p = settings.on && /^\/players\//.test(location.pathname) ? readProfile() : null;
     if (!p) { old.forEach((b) => b.remove()); profileKey = ""; return; }
-    const key = `${location.pathname}|${p.elo}|${p.wins}|${p.losses}|${p.rating}`;
+    const key = `${location.pathname}|${p.elo}|${p.wins}|${p.losses}|${p.rating}|${p.gained}`;
     if (key === profileKey && old.length === 1 && p.standing.contains(old[0])) return;
     old.forEach((b) => b.remove());
     profileKey = key;
@@ -184,6 +185,10 @@ globalThis.KarasuEloModel = (() => {
     const sub = h("div", "sub");
     sub.append(h("span", pg > 0 ? "up" : pg < 0 ? "dn" : "", `${pg > 0 ? "+" : pg < 0 ? "−" : "±"}${Math.abs(pg).toFixed(1)} Elo/game`),
       ` at HLTV ${p.rating.toFixed(2)} and ${Math.round(winRate * 100)}% wins (win +${t.win}, loss −${t.loss})`);
+    if (p.gained !== null) {
+      const act = Math.round((p.gained / games) * 10) / 10;
+      sub.append(` · actual last ${games}: ${act > 0 ? "+" : act < 0 ? "−" : "±"}${Math.abs(act).toFixed(1)}/game`);
+    }
     box.title = `Estimate from the last ${games} games: an even match each game, won ${Math.round(winRate * 100)}% of the time at a ${p.rating.toFixed(2)} HLTV rating.`
       + ` Form Elo = Elo + 500 × (HLTV − 1), the same form the match-room win chance uses.`;
     box.append(h("span", "tag", "Estimate"), go, form, sub);
@@ -192,4 +197,4 @@ globalThis.KarasuEloModel = (() => {
   }
 
 
-refreshProfile();return document.querySelector('[data-kee-profile]').shadowRoot.textContent.slice(-300);})()
+refreshProfile();return document.querySelector('[data-kee-profile]').shadowRoot.querySelector('.est').textContent;})()
