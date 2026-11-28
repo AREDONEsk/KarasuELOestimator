@@ -885,22 +885,6 @@
     .pill b { color: #fff; font-weight: 800; }
     .pill b.hot { color: #fbbf24; } .pill b.cold { color: #8a8b96; }
     .pill b.up { color: #4ade80; } .pill b.dn { color: #f87171; }
-    .wl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-    .wt { --tc: #4ade80; padding: 7px 9px 6px; border-radius: 8px; background: rgba(255,255,255,.03);
-      border: 1px solid rgba(255,255,255,.07); min-width: 0; }
-    .wt.l { --tc: #f87171; }
-    .wt .lb { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: #8a8b96; font-weight: 700;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .wt .big { margin-top: 2px; font-size: 18px; font-weight: 800; color: var(--tc); letter-spacing: -.02em;
-      font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .wt .big .to { font-size: 10.5px; font-weight: 600; color: #6f707b; margin: 0 5px; letter-spacing: 0; }
-    .wt .mt { position: relative; height: 4px; margin: 6px 0 3px; border-radius: 3px; background: rgba(255,255,255,.08); }
-    .wt .mt i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: var(--tc); opacity: .55; }
-    .wt .mt b { position: absolute; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
-      background: #fff; box-shadow: 0 0 0 2px #0f1116, 0 0 6px var(--tc); }
-    .wt .ends { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 600; color: #6f707b;
-      font-variant-numeric: tabular-nums; }
-    @media (max-width: 520px) { .wl { grid-template-columns: 1fr; } }
     .pill .hex { width: 14px; height: 15px; } .pill .hex b { font-size: 7.5px; }
     .pill.warn { border-color: rgba(251,191,36,.35); color: #fbbf24; }
     @media (prefers-reduced-motion: reduce) { .est, .rail .ghost { animation: none; } }
@@ -1020,43 +1004,20 @@
     mid.append(h("i", "", `→ ${Math.max(0, Math.round(then)).toLocaleString()}`), ` in ${PREVIEW_GAMES} games`);
     scale.append(h("span", "", lo.toLocaleString()), mid, h("span", "", lv.next ? hi.toLocaleString() : ""));
 
-    // Win / loss tiles, like the match room: the range from their usual weak game to their usual
-    // strong game (an even match), a band for that range on a bar from a 0.6 to a 1.69 game, and a
-    // dot at their average. Without the range yet, just the average.
+    // Win / loss, like the match room: from their usual weak game to their usual strong game
+    // (10th–90th percentile of the last 30, at an even match). Without the range yet, the average.
     const rAvg = Math.round(Math.min(2.5, Math.max(0.3, p.rating)) * 100) / 100;
     const range = usual && !few ? [Math.min(usual[0], rAvg), Math.max(usual[1], rAvg)] : null;
-    const lowR = Math.min(RANGE.bad, rAvg, ...(range ? [range[0]] : []));
-    const highR = Math.max(RANGE.great, rAvg, ...(range ? [range[1]] : []));
     const est = (r) => M.estimate(p.elo, p.elo, r);
-    const avgE = est(Math.min(useRating, M.FLAME_RATING - 0.01)), bad = est(lowR), great = est(highR);
     const loE = range && est(range[0]), hiE = range && est(range[1]);
-    const wtile = (kind, label, sign, key) => {
-      const x = h("div", `wt ${kind}`);
-      const big = h("div", "big");
-      const worst = bad[key], best = great[key];
-      const posOf = (v) => (best === worst ? 50 : Math.max(0, Math.min(100, ((v - worst) / (best - worst)) * 100)));
-      const mt = h("div", "mt");
-      if (range && loE[key] !== hiE[key]) {
-        big.append(`${sign}${loE[key]}`, h("span", "to", "to"), `${sign}${hiE[key]}`);
-        const band = h("i"), a = posOf(loE[key]), b = posOf(hiE[key]);
-        band.style.left = `${Math.min(a, b)}%`;
-        band.style.width = `${Math.max(Math.abs(b - a), 2)}%`;
-        mt.append(band);
-      } else big.textContent = `${sign}${range ? loE[key] : avgE[key]}`;
-      const dot = h("b");
-      dot.style.left = `${posOf(avgE[key])}%`;
-      dot.title = `At the ${useRating.toFixed(2)} average: ${sign}${avgE[key]}`;
-      mt.append(dot);
-      const ends = h("div", "ends");
-      ends.append(h("span", "", `${sign}${worst}`), h("span", "", `${sign}${best}`));
-      x.append(h("div", "lb", label), big, mt, ends);
-      return x;
+    const span = (key, sign, cls) => {
+      const b = h("b", cls, range && loE[key] !== hiE[key] ? `${sign}${loE[key]} to ${sign}${hiE[key]}` : `${sign}${range ? loE[key] : t[key]}`);
+      return b;
     };
-    const wl = h("div", "wl");
-    wl.title = `Even match. ${range ? `Big number: their usual ${range[0].toFixed(2)} to ${range[1].toFixed(2)} game (10th–90th percentile of the last 30). ` : ""}`
-      + `Bar: a ${lowR.toFixed(2)} game to a ${highR.toFixed(2)} game; dot: their average.`;
-    const mine = onMyProfile();
-    wl.append(wtile("w", mine ? "If you win" : "If they win", "+", "win"), wtile("l", mine ? "If you lose" : "If they lose", "−", "loss"));
+    const wlPill = h("span", "pill");
+    wlPill.append("Win", span("win", "+", "up"), "· Loss", span("loss", "−", "dn"));
+    wlPill.title = range ? `Even match, from a ${range[0].toFixed(2)} game to a ${range[1].toFixed(2)} game (their usual range over the last 30)`
+      : `Even match, at a ${useRating.toFixed(2)} rating`;
 
     // Pills: what it's based on.
     const pill = (...parts) => { const x = h("span", "pill"); x.append(...parts); return x; };
@@ -1064,6 +1025,7 @@
     pills.append(
       pill("HLTV", h("b", p.rating >= 1.25 ? "hot" : p.rating < 0.95 ? "cold" : "", p.rating.toFixed(2)),
         ...(range ? [`· usual ${range[0].toFixed(2)}–${range[1].toFixed(2)}`] : [])),
+      wlPill,
       pill(h("b", "", `${Math.round(winRate * 100)}%`), "wins"),
     );
     if (p.gained !== null) {
@@ -1079,7 +1041,7 @@
       + (few ? ` (few games, so counted as ${useRating.toFixed(2)} and ${Math.round(useWin * 100)}%)` : "")
       + `. Striped bar: where ${PREVIEW_GAMES} more games at this pace would take you.`
       + ` Form Elo = Elo + 500 × (HLTV − 1), the same form the match-room win chance uses.`;
-    box.append(head, track, scale, wl, pills);
+    box.append(head, track, scale, pills);
     root.append(style, box);
     p.standing.append(host);
   }
