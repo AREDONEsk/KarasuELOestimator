@@ -160,8 +160,13 @@ globalThis.KarasuEloModel = (() => {
     old.forEach((b) => b.remove());
     profileKey = key;
 
+    // Under 10 games, pull the rating toward 1.00 and the win rate toward 50% in proportion,
+    // like the match room does, so one lucky game doesn't promise a level in 5 games.
     const games = p.wins + p.losses, winRate = p.wins / games;
-    const t = profileTrend(p.elo, p.rating, winRate);
+    const few = games < M.FORM_FULL_GAMES;
+    const useRating = M.formRating(p.rating, games);
+    const useWin = 0.5 + (winRate - 0.5) * Math.min(1, games / M.FORM_FULL_GAMES);
+    const t = profileTrend(p.elo, useRating, useWin);
     const host = document.createElement("div");
     host.setAttribute(PBOX, "");
     const root = host.attachShadow({ mode: "open" });
@@ -184,7 +189,9 @@ globalThis.KarasuEloModel = (() => {
     const pg = Math.round(t.perGame * 10) / 10;
     const sub = h("div", "sub");
     sub.append(h("span", pg > 0 ? "up" : pg < 0 ? "dn" : "", `${pg > 0 ? "+" : pg < 0 ? "−" : "±"}${Math.abs(pg).toFixed(1)} Elo/game`),
-      ` at HLTV ${p.rating.toFixed(2)} and ${Math.round(winRate * 100)}% wins (win +${t.win}, loss −${t.loss})`);
+      ` at HLTV ${p.rating.toFixed(2)} and ${Math.round(winRate * 100)}% wins`
+      + (few ? ` (only ${games} game${games === 1 ? "" : "s"}, counted as ${useRating.toFixed(2)} and ${Math.round(useWin * 100)}%)` : "")
+      + ` (win +${t.win}, loss −${t.loss})`);
     if (p.gained !== null) {
       const act = Math.round((p.gained / games) * 10) / 10;
       sub.append(` · actual last ${games}: ${act > 0 ? "+" : act < 0 ? "−" : "±"}${Math.abs(act).toFixed(1)}/game`);
