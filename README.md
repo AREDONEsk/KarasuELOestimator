@@ -28,11 +28,11 @@ Karasu does not publish its Elo formula. This model was fitted across 25 real ma
 
 ```
 chance = 1 / (1 + 10 ^ ((enemyAvg - teamAvg) / 400))      // standard Elo win chance
-win    = 44 × (1 − chance) × (0.08 + 0.74 × rating)
-loss   = 44 × chance       × (1.65 − 0.68 × rating) + 3
+win    = 44 × (1 − chance) × (0.08 + 0.79 × rating)
+loss   = 44 × chance       × (1.94 − 0.81 × rating)
 ```
 
-`rating` is the player's HLTV rating in the match. A standout game (rating of 1.69 or more, the flame icon on Karasu) counts as a 2.00 rating for the win. Wins are capped at 40 (48 for a flame game) and losses at 40 (after the +3), and every change is at least 3.
+`rating` is the player's HLTV rating in the match. A standout game (rating of 1.69 or more, the flame icon on Karasu) counts as a 2.00 rating for the win. Wins are capped at 40 (48 for a flame game) and losses at 40, and every change is at least 3.
 Your own Elo does not change the result; only the two team averages and how you play do.
 
 The model is in [`model.js`](model.js).

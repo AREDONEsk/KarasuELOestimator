@@ -2,15 +2,16 @@
 // (average error about 1 Elo). Karasu does not publish its formula; this is an estimate.
 //
 //   chance = your team's win chance, from the two teams' average Elo
-//   win    = 44 x (1 - chance) x (0.08 + 0.74 x HLTV rating)
-//   loss   = 44 x chance       x (1.65 - 0.68 x HLTV rating)
+//   win    = 44 x (1 - chance) x (0.08 + 0.79 x HLTV rating)
+//   loss   = 44 x chance       x (1.94 - 0.81 x HLTV rating)
 //   standout game (HLTV >= 1.69, the flame icon on Karasu): the win counts as a 2.00 rating,
 //   whatever the real rating was. Fits every flame game seen: 1.81 and 2.51 both +33 (2.00 gives
 //   33), 1.87 got +44 (2.00 gives 44), and two +48s where 2.00 gives 65 but wins are capped.
 //   The flame starts at 1.69. MVP adds nothing extra.
 //   losses are capped at 40, normal wins at 40 and flame wins at 48. Every change is at least 3 (lopsided matches show +3/-3 at any rating).
-//   Then losses get +3: checked against 3,000 real Karasu results (Nov 2026), the formula above came
-//   out about 3 short on losses. With the offset, losses are within ±1 Elo 65% of the time (was 14%).
+//   Refitted (v1.9.1) on 7,584 real Karasu results (Nov 2026). The old flat +3 on losses was right in
+//   even matches but too much in lopsided ones (a 6% underdog lost -3, we said -6), so the loss now
+//   scales with the win chance instead. Losses within ±1 Elo: 84% (was 63%); wins: 67% (was 53%).
 //
 // Averages must be PRE-match Elo. On a finished match use preMatchAvg() first.
 globalThis.KarasuEloModel = (() => {
@@ -24,17 +25,16 @@ globalThis.KarasuEloModel = (() => {
   const winChance = (ownAvg, enemyAvg) => 1 / (1 + 10 ** ((enemyAvg - ownAvg) / 400));
   const MIN_CHANGE = 3;
   const atLeastMin = (x) => Math.max(MIN_CHANGE, Math.round(x));
-  const LOSS_OFFSET = 3; // added before the loss cap
 
   function estimate(ownAvg, enemyAvg, rating) {
     const chance = winChance(ownAvg, enemyAvg);
-    const winAt = (r) => K * (1 - chance) * (0.08 + 0.74 * r);
+    const winAt = (r) => K * (1 - chance) * (0.08 + 0.79 * r);
     const flame = rating >= FLAME_RATING;
     const win = Math.min(flame ? FLAME_WIN_CAP : WIN_CAP, winAt(flame ? FLAME_AS : rating));
     return {
       chance,
       win: atLeastMin(win),
-      loss: atLeastMin(Math.min(LOSS_CAP, Math.round(K * chance * (1.65 - 0.68 * rating)) + LOSS_OFFSET)),
+      loss: atLeastMin(Math.min(LOSS_CAP, K * chance * (1.94 - 0.81 * rating))),
     };
   }
 
