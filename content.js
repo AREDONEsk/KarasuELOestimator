@@ -841,7 +841,8 @@
     .hx { --lc: #8a8b96; position: relative; width: 17px; height: 19px; flex: none; }
     .hx svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--lc) 40%, transparent)); }
     .hx path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3.5; }
-    .hx b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 9px; font-weight: 800; }
+    .hx b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 9px; font-weight: 800;
+      transform: translateY(.08em); } /* Karasu's font (Oxanium) sits ~0.7px high when centred */
     .f { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; white-space: nowrap;
       background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
       font-size: 11px; font-weight: 600; color: #8a8b96; font-variant-numeric: tabular-nums; line-height: 1.5; }
@@ -899,7 +900,7 @@
       if (elo === undefined) continue;
       const { rating, games } = rowStats(li);
       const hasForm = Number.isFinite(rating);
-      const fe = hasForm ? Math.max(0, Math.round(M.formElo(elo, rating, games))) : elo, fd = fe - elo;
+      const fe = hasForm ? Math.max(0, Math.round(M.formElo(elo, rating, games))) : elo;
       // The badge is the level their form Elo would be (their real level if there's no rating).
       const lv = M.level(fe);
       const name = li.querySelector(".match-overview__player-name");
@@ -917,12 +918,11 @@
       });
       const rank = li.querySelector(".match-overview__rank");
       if (!rank || !hasForm) { li.querySelector(`[${RBOX}="form"]`)?.remove(); continue; }
-      rowDeco(li, rank, "form", `${fe}|${fd}`, () => {
+      rowDeco(li, rank, "form", String(fe), () => {
         const f = h("span", "f", "Form ");
         const v = h("b", "", fe.toLocaleString());
         v.style.color = M.level(fe).color;
         f.append(v);
-        if (fd) f.append(h("span", fd > 0 ? "u" : "d", `${fd > 0 ? "+" : "−"}${Math.abs(fd)}`));
         f.title = `Form Elo: ${elo.toLocaleString()} Elo + 500 × (HLTV ${rating.toFixed(2)} − 1)`
           + (Number.isFinite(games) && games < M.FORM_FULL_GAMES ? `, damped for only ${games} game${games === 1 ? "" : "s"}` : "")
           + ` · would be ${M.level(fe).label}`;
@@ -966,7 +966,8 @@
     .hex { --lc: #8a8b96; position: relative; width: 24px; height: 26px; flex: none; }
     .hex svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--lc) 45%, transparent)); }
     .hex path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3; }
-    .hex b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 10.5px; font-weight: 800; }
+    .hex b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 10.5px; font-weight: 800;
+      transform: translateY(.08em); } /* Karasu's font sits slightly high when centred */
     .hex.dim { opacity: .45; }
     .rail { position: relative; flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,.07); }
     .rail .now { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--lc, #8a8b96); opacity: .9; }
