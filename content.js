@@ -279,10 +279,11 @@
     .chip { position: relative; flex: 1; min-width: 0; padding: 6px 7px 7px; border-radius: 8px; box-sizing: border-box;
       background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.06); font-variant-numeric: tabular-nums; }
     .chip.you { border-color: color-mix(in srgb, var(--lc) 45%, transparent); }
-    .chip.carry { border-color: rgba(251,191,36,.45); background: rgba(251,191,36,.06); }
     .chip .cn { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; color: #e7e7ea; }
     .chip .nm { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .chip .crown { position: absolute; top: 31px; right: 8px; font-size: 14px; }
+    .chip .flag { position: absolute; bottom: 12px; right: 8px; font-size: 14px; line-height: 1;
+      font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+    .chip.has-flag .ce { padding-right: 20px; }
     .chip .cw { font-size: 15px; font-weight: 800; margin-top: 2px; letter-spacing: -.01em; }
     .chip .ce { font-size: 9.5px; font-weight: 600; color: #7a7b86; margin-top: 1px; line-height: 1.35; }
     .chip .ce .hl { color: #d4d4d8; font-weight: 700; } .chip .ce .hl.hot { color: #fbbf24; } .chip .ce .hl.cold { color: #8a8b96; }
@@ -294,6 +295,12 @@
     .mhex path { fill: color-mix(in srgb, var(--lc) 18%, #111319); stroke: var(--lc); stroke-width: 3.5; }
     .mhex b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lc); font-size: 9px; font-weight: 800; }
     .legend { margin-top: 6px; }
+    .chip { cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
+    .chip:hover { border-color: rgba(255,255,255,.22); }
+    .chip:focus-visible { outline: 2px solid rgba(255,255,255,.5); outline-offset: 1px; }
+    .chip.sel { border-color: rgba(255,255,255,.7); background: rgba(255,255,255,.07);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.35), 0 0 12px rgba(255,255,255,.12); }
+    .tile .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     @media (prefers-reduced-motion: reduce) { .card, .split i { animation: none; } }`;
 
   const h = (tag, cls, txt) => {
@@ -399,17 +406,32 @@
   }
 
   // One chip per player: level, name, how much win chance they add vs a team-average player
-  // (using HLTV form), their Elo and last-30 HLTV. 👑 on the team's biggest carry.
-  function playerChips(form) {
+  // (using HLTV form), their Elo and last-30 HLTV, and their country flag bottom right.
+  // Clicking a chip shows that player's win/lose Elo in the tiles above; clicking it again
+  // (or your own chip) goes back to you.
+  function playerChips(form, selected, onPick) {
     const wrap = h("div", "chips");
     const me = myName();
-    const top = form.players.reduce((a, b) => (b.impact > a.impact ? b : a), form.players[0]);
     for (const p of form.players) {
       const lv = M.level(p.pre);
       const isMe = !!me && p.name === me;
       const chip = h("div", "chip");
       if (isMe) chip.classList.add("you");
-      if (p === top && p.impact > 0) { chip.classList.add("carry"); chip.append(h("span", "crown", "👑")); }
+      const isSel = selected ? p.name === selected : isMe;
+      if (isSel) chip.classList.add("sel");
+      chip.tabIndex = 0;
+      chip.setAttribute("role", "button");
+      chip.setAttribute("aria-pressed", String(isSel));
+      const pick = () => onPick(isMe || p.name === selected ? null : p.name);
+      chip.addEventListener("click", pick);
+      chip.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); } });
+      const cc = lineupInfo(p.name)?.country;
+      if (cc) {
+        const f = h("span", "flag", flagEmoji(cc));
+        f.title = countryName(cc);
+        chip.append(f);
+        chip.classList.add("has-flag");
+      }
       chip.style.setProperty("--lc", lv.color);
       const n = h("div", "cn");
       n.append(miniHex(lv), h("span", "nm", p.name));
@@ -430,19 +452,24 @@
       chip.title = `${p.name}: ${Number.isFinite(p.rating) ? `HLTV ${p.rating.toFixed(2)}` : "no HLTV rating"}`
         + `${Number.isFinite(p.games) ? ` over ${p.games} game${p.games === 1 ? "" : "s"}` : ""}`
         + `${Number.isFinite(p.games) && p.games < M.FORM_FULL_GAMES ? ` (counted as ${M.formRating(p.rating, p.games).toFixed(2)}: few games)` : ""}`
-        + ` · form Elo ${Math.round(p.eff).toLocaleString()} · bar = form vs team average`;
+        + ` · form Elo ${Math.round(p.eff).toLocaleString()} · bar = form vs team average`
+        + (isMe ? "" : isSel ? " · click to show yours again" : " · click to see their win/lose Elo");
       chip.append(n, w, e, mb);
       wrap.append(chip);
     }
     return wrap;
   }
 
-  function buildCard(team, ownAvg, enemyAvg, finished, approx, form) {
-    const card = h("div", "card");
-    const r = settings.rating;
+  // The win/lose tiles and the line explaining them, for you (who = null) or for a player picked
+  // from the chips. A picked player is worked out at their last-30 HLTV average (1.00 if Karasu
+  // shows none), with their own usual range once it has loaded from Karasu's API.
+  function rangeParts(ownAvg, enemyAvg, finished, who) {
+    const other = who && Number.isFinite(who.rating) ? who.rating : 1;
+    const r = who ? r2(other) : settings.rating;
     const now = M.estimate(ownAvg, enemyAvg, r);
-    const range = usualRange();
-    // Bar ends: a 0.6 and a 1.69 game, widened to take in your usual range and average, so the
+    const theirs = who && playerRanges.get(lineupInfo(who.name)?.steam);
+    const range = who ? (theirs && Number.isFinite(who.rating) ? [Math.min(theirs[0], r), Math.max(theirs[1], r)] : null) : usualRange();
+    // Bar ends: a 0.6 and a 1.69 game, widened to take in the range and average, so the
     // range in the big number never sits outside the bar.
     const lowR = Math.min(RANGE.bad, r, ...(range ? [range[0]] : []));
     const highR = Math.max(RANGE.great, r, ...(range ? [range[1]] : []));
@@ -450,6 +477,46 @@
     const great = M.estimate(ownAvg, enemyAvg, highR);
     const lo = range && M.estimate(ownAvg, enemyAvg, range[0]);
     const hi = range && M.estimate(ownAvg, enemyAvg, range[1]);
+
+    const tiles = h("div", "tiles");
+    // Win: a bad game gains least, a great game most. Loss: a great game loses least.
+    // 🔥 when the average, or the top of your usual range, reaches the flame threshold.
+    const flame = (range ? range[1] : r) >= M.FLAME_RATING;
+    const nm = who ? who.name : "you";
+    const tw = tile("w", `If ${nm} win${who ? "s" : ""}`, "+", now.win, bad.win, great.win, range && { lo: lo.win, hi: hi.win }, flame);
+    const tl = tile("l", `If ${nm} lose${who ? "s" : ""}`, "−", now.loss, bad.loss, great.loss, range && { lo: lo.loss, hi: hi.loss });
+    if (who) [tw, tl].forEach((t) => t.querySelector("b").title = `At ${who.name}'s ${r.toFixed(2)} average`);
+    const elo = who ? Math.round(who.pre) : myElo();
+    if (elo !== null && !finished) { tw.append(proj(elo, now.win)); tl.append(proj(elo, -now.loss)); }
+    tiles.append(tw, tl);
+
+    const foot = h("div", "foot");
+    const ends = ` · ends = ${lowR.toFixed(2)} to ${highR.toFixed(2)} game`;
+    if (who) {
+      foot.append(h("b", "", who.name), range ? "'s usual HLTV " : " at ");
+      if (range) foot.append(h("b", "", `${range[0].toFixed(2)}–${range[1].toFixed(2)}`), " · dot = their ", h("b", "", r.toFixed(2)), " average");
+      else if (Number.isFinite(who.rating)) foot.append("their last-30 HLTV ", h("b", "", r.toFixed(2)),
+        Number.isFinite(who.games) ? ` (${who.games} game${who.games === 1 ? "" : "s"})` : "");
+      else foot.append("HLTV ", h("b", "", "1.00"), " (no rating shown)");
+      foot.append(`${ends} · click again for yours`);
+    } else if (range) foot.append("Your usual HLTV ", h("b", "", `${range[0].toFixed(2)}–${range[1].toFixed(2)}`),
+      " · dot = your ", h("b", "", r.toFixed(2)), ` average${ends}`);
+    else foot.append("At your ", h("b", "", r.toFixed(2)), ` HLTV rating${ends}`);
+    return { tiles, foot };
+  }
+
+  // Which chip is picked in each team card, kept across redraws until you leave the match page.
+  const picked = { path: "", names: [null, null] };
+  const pickedFor = (i) => (picked.path === location.pathname ? picked.names[i] : null);
+  function setPicked(i, name) {
+    if (picked.path !== location.pathname) picked.names = [null, null];
+    picked.path = location.pathname;
+    picked.names[i] = name;
+  }
+
+  function buildCard(team, ownAvg, enemyAvg, finished, approx, form, idx) {
+    const card = h("div", "card");
+    const now = M.estimate(ownAvg, enemyAvg, settings.rating);
     // The big win chance uses HLTV form when Karasu shows ratings; the win/lose tiles stay on plain
     // Elo, because Karasu works out the Elo change from plain Elo averages.
     const eloPct = Math.round(now.chance * 100);
@@ -491,25 +558,30 @@
     fill.style.width = `${pct}%`;
     split.append(fill);
 
-    const tiles = h("div", "tiles");
-    // Win: a bad game gains least, a great game most. Loss: a great game loses least.
-    // 🔥 when your average, or the top of your usual range, reaches the flame threshold.
-    const flame = (range ? range[1] : r) >= M.FLAME_RATING;
-    const tw = tile("w", "If you win", "+", now.win, bad.win, great.win, range && { lo: lo.win, hi: hi.win }, flame);
-    const tl = tile("l", "If you lose", "−", now.loss, bad.loss, great.loss, range && { lo: lo.loss, hi: hi.loss });
-    const me = myElo();
-    if (me !== null && !finished) { tw.append(proj(me, now.win)); tl.append(proj(me, -now.loss)); }
-    tiles.append(tw, tl);
-
-    const foot = h("div", "foot");
-    if (range) foot.append("Your usual HLTV ", h("b", "", `${range[0].toFixed(2)}–${range[1].toFixed(2)}`),
-      " · dot = your ", h("b", "", r.toFixed(2)), ` average · ends = ${lowR.toFixed(2)} to ${highR.toFixed(2)} game`);
-    else foot.append("At your ", h("b", "", r.toFixed(2)), ` HLTV rating · ends = ${lowR.toFixed(2)} to ${highR.toFixed(2)} game`);
+    // A picked player the page no longer shows falls back to you.
+    const whoFor = (name) => (name && form?.players.find((p) => p.name === name)) || null;
+    let who = whoFor(pickedFor(idx));
+    let { tiles, foot } = rangeParts(ownAvg, enemyAvg, finished, who);
     card.append(h("div", "team", team.name), head, split, tiles);
     if (form && form.players.length) {
-      card.append(playerChips(form));
-      const legend = h("div", "foot legend", "Impact = Elo + last-30 HLTV form (0.10 HLTV ≈ 50 Elo) · ");
-      legend.append(h("b", "", "👑"), " = biggest carry");
+      // Picking a chip swaps only the tiles, chips and footer line, so nothing else re-animates.
+      let chips;
+      const pick = (name, again) => {
+        if (!again) setPicked(idx, name);
+        else if (pickedFor(idx) !== name || !card.isConnected) return;
+        who = whoFor(name);
+        if (who && !again) loadPlayerRange(lineupInfo(who.name)?.steam).then((got) => got && pick(name, true));
+        const next = rangeParts(ownAvg, enemyAvg, finished, who);
+        tiles.replaceWith(next.tiles); foot.replaceWith(next.foot);
+        ({ tiles, foot } = next);
+        const c = playerChips(form, who && who.name, pick);
+        chips.replaceWith(c); chips = c;
+        if (!again) chips.querySelector(".chip.sel")?.focus({ preventScroll: true });
+      };
+      chips = playerChips(form, who && who.name, pick);
+      if (who) loadPlayerRange(lineupInfo(who.name)?.steam).then((got) => got && pick(who.name, true));
+      card.append(chips);
+      const legend = h("div", "foot legend", "Impact = Elo + last-30 HLTV form (0.10 HLTV ≈ 50 Elo) · click a player to see their win/lose Elo");
       card.append(legend);
     }
     card.append(foot);
@@ -528,8 +600,8 @@
     const root = host.attachShadow({ mode: "open" });
     root.append(h("style", "", CSS));
     const grid = h("div", "grid");
-    grid.append(buildCard(teams[0], avg[0], avg[1], finished, approx, forms && forms[0]),
-                buildCard(teams[1], avg[1], avg[0], finished, approx, forms && forms[1]));
+    grid.append(buildCard(teams[0], avg[0], avg[1], finished, approx, forms && forms[0], 0),
+                buildCard(teams[1], avg[1], avg[0], finished, approx, forms && forms[1], 1));
     if (myElo() !== null) root.append(meStrip(myElo()));
     root.append(grid);
     section.insertAdjacentElement("beforebegin", host);
@@ -583,7 +655,8 @@
     const avg = sb ? sb.avg : teams.map(shownAvg);
     const approx = finished && !exact;
     const forms = teamForms(teams, avg, sb);
-    const key = `${avg}|${finished}|${approx}|${settings.rating}|${settings.myElo}|${settings.ratingLow}|${settings.ratingHigh}`
+    loadLineup();
+    const key = `${lineups.get(pageMatchId())?.size || 0}|${avg}|${finished}|${approx}|${settings.rating}|${settings.myElo}|${settings.ratingLow}|${settings.ratingHigh}`
       + `|${myName()}|${teams.map((t) => t.players.map((p) => `${p.name}:${p.elo}:${p.rating}:${p.games}`).join(",")).join(";")}`;
     if (!force && key === lastKey && old.length === 1 && old[0].isConnected) return;
     old.forEach((b) => b.remove());
@@ -692,6 +765,57 @@
       settings.ratingLow = low; settings.ratingHigh = high;
       save("sync", { ratingLow: low, ratingHigh: high });
     } catch { /* offline or Karasu changed its API: keep the last range */ }
+  }
+
+  // Country and Steam ID of each player in this match, by name, from the same public API:
+  // the match page's address ends in the match's ID. Fetched once per match, then the panel redraws.
+  const LINEUP_QUERY = `query ($m: uuid!) { matches_by_pk(id: $m) {
+    lineup_1 { lineup_players { player { name country steam_id } } }
+    lineup_2 { lineup_players { player { name country steam_id } } } } }`;
+  const lineups = new Map(); // match ID -> Map(name -> { country, steam }), or null while loading
+  const pageMatchId = () => location.pathname.match(/\/matches?\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)?.[1];
+  function lineupInfo(name) {
+    const id = pageMatchId();
+    return (id && lineups.get(id)?.get(name)) || null;
+  }
+  async function loadLineup() {
+    const id = pageMatchId();
+    if (!id || lineups.has(id)) return;
+    lineups.set(id, null);
+    try {
+      const res = await fetch(API, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: LINEUP_QUERY, variables: { m: id } }) });
+      const m = (await res.json())?.data?.matches_by_pk;
+      const map = new Map();
+      for (const l of [m?.lineup_1, m?.lineup_2]) for (const lp of l?.lineup_players || []) {
+        if (lp.player?.name) map.set(lp.player.name, { country: lp.player.country || null, steam: lp.player.steam_id || null });
+      }
+      lineups.set(id, map);
+      if (map.size && alive()) refresh(true);
+    } catch { lineups.delete(id); }
+  }
+
+  // Another player's usual HLTV range (10th–90th percentile of their last 30 games), like yours.
+  // Resolves true when it newly loaded.
+  const playerRanges = new Map(); // Steam ID -> [low, high], or null when unknown
+  async function loadPlayerRange(steam) {
+    if (!steam || playerRanges.has(steam)) return false;
+    playerRanges.set(steam, null);
+    try {
+      const res = await fetch(API, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: RANGE_QUERY, variables: { s: steam } }) });
+      const rows = (await res.json())?.data?.v_player_match_map_hltv || [];
+      const xs = rows.map((r) => Number(r.hltv_rating)).filter(Number.isFinite).sort((a, b) => a - b);
+      if (xs.length < 5) return false;
+      playerRanges.set(steam, [r2(pctl(xs, 0.1)), r2(pctl(xs, 0.9))]);
+      return true;
+    } catch { playerRanges.delete(steam); return false; }
+  }
+
+  // "SK" -> 🇸🇰 (Karasu loads a flag font, so this shows as a flag on Windows too).
+  const flagEmoji = (cc) => /^[A-Za-z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 0x1f1a5 + c.charCodeAt(0))) : "";
+  function countryName(cc) {
+    try { return new Intl.DisplayNames(["en"], { type: "region" }).of(cc.toUpperCase()) || cc; } catch { return cc; }
   }
 
   // [low, high] if known; the average is kept inside it.
