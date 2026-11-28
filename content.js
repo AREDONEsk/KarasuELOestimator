@@ -281,9 +281,11 @@
     .chip.you { border-color: color-mix(in srgb, var(--lc) 45%, transparent); }
     .chip .cn { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; color: #e7e7ea; }
     .chip .nm { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .chip .flag { position: absolute; bottom: 12px; right: 8px; font-size: 14px; line-height: 1;
+    .chip .hr { display: flex; align-items: center; gap: 4px; }
+    .chip .fg { color: #62636e; }
+    .chip .hr .ht { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chip .flag { margin-left: auto; flex: none; font-size: 12px; line-height: 1;
       font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
-    .chip.has-flag .ce { padding-right: 20px; }
     .chip .cw { font-size: 15px; font-weight: 800; margin-top: 2px; letter-spacing: -.01em; }
     .chip .ce { font-size: 9.5px; font-weight: 600; color: #7a7b86; margin-top: 1px; line-height: 1.35; }
     .chip .ce .hl { color: #d4d4d8; font-weight: 700; } .chip .ce .hl.hot { color: #fbbf24; } .chip .ce .hl.cold { color: #8a8b96; }
@@ -425,25 +427,28 @@
       const pick = () => onPick(isMe || p.name === selected ? null : p.name);
       chip.addEventListener("click", pick);
       chip.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); } });
-      const cc = lineupInfo(p.name)?.country;
-      if (cc) {
-        const f = h("span", "flag", flagEmoji(cc));
-        f.title = countryName(cc);
-        chip.append(f);
-        chip.classList.add("has-flag");
-      }
       chip.style.setProperty("--lc", lv.color);
       const n = h("div", "cn");
       n.append(miniHex(lv), h("span", "nm", p.name));
       const imp = Math.round(p.impact * 10) / 10;
       const w = h("div", `cw ${imp >= 0 ? "up-t" : "dn-t"}`, `${imp >= 0 ? "+" : "−"}${Math.abs(imp).toFixed(1)}%`);
       const e = h("div", "ce", `${Math.round(p.pre).toLocaleString()} Elo`);
-      e.append(h("br"));
+      // Few games: the rating is pulled toward 1.00, so say how many it rests on.
+      if (Number.isFinite(p.rating) && Number.isFinite(p.games) && p.games < M.FORM_FULL_GAMES) e.append(h("span", "fg", ` · ${p.games}g`));
+      // HLTV row, with the country flag at its right end.
+      const hr = h("div", "hr");
+      const ht = h("span", "ht");
       if (Number.isFinite(p.rating)) {
-        e.append("HLTV ", h("b", `hl${p.rating >= 1.25 ? " hot" : p.rating < 0.95 ? " cold" : ""}`, p.rating.toFixed(2)));
-        // Few games: the rating is pulled toward 1.00, so say how many it rests on.
-        if (Number.isFinite(p.games) && p.games < M.FORM_FULL_GAMES) e.append(` · ${p.games}g`);
-      } else e.append("HLTV –");
+        ht.append("HLTV ", h("b", `hl${p.rating >= 1.25 ? " hot" : p.rating < 0.95 ? " cold" : ""}`, p.rating.toFixed(2)));
+      } else ht.append("HLTV –");
+      hr.append(ht);
+      const cc = lineupInfo(p.name)?.country;
+      if (cc) {
+        const f = h("span", "flag", flagEmoji(cc));
+        f.title = countryName(cc);
+        hr.append(f);
+      }
+      e.append(hr);
       const mb = h("div", "mb");
       const bar = h("i");
       const frac = Math.min(1, Math.abs(p.vsAvg) / 200) * 50;
