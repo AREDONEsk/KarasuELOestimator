@@ -868,10 +868,33 @@
     root.append(style, build());
     anchor.after(host);
   }
+  // Colour Karasu's own last-30 stats in each row: Rating (HLTV bands), Avg kills and Win rate.
+  const TINT = { bad: "#f87171", "": "#ffffff", good: "#4ade80", gold: "#fbbf24" };
+  const killsTone = (k) => (k <= 11 ? "bad" : k < 14 ? "" : k < 18 ? "good" : "gold");
+  const winTone = (w) => (w < 45 ? "bad" : w > 55 ? "good" : "");
+  function tintStats(li, on) {
+    for (const dd of li.querySelectorAll(".match-overview__history dd")) {
+      const label = dd.parentElement?.querySelector("dt")?.textContent.trim().toLowerCase() || "";
+      const v = parseFloat(dd.textContent.replace(",", ".").replace(/[^\d.]/g, ""));
+      const tone = !on || !Number.isFinite(v) ? null
+        : label === "rating" ? hltvTone(v)
+        : /avg\.?\s*kills/.test(label) ? killsTone(v)
+        : /win\s*rate/.test(label) ? winTone(v) : null;
+      if (tone === null) {
+        if (dd.hasAttribute("data-kee-tint")) { dd.style.removeProperty("color"); dd.removeAttribute("data-kee-tint"); }
+        continue;
+      }
+      if (dd.getAttribute("data-kee-tint") === tone) continue;
+      dd.style.setProperty("color", TINT[tone], "important");
+      dd.setAttribute("data-kee-tint", tone);
+    }
+  }
+
   function decorateRows() {
     const rows = document.querySelectorAll("article.match-overview__team .match-overview__player, article.match-overview__team .match-overview__roster > li");
-    if (!settings.on) { document.querySelectorAll(`[${RBOX}]`).forEach((x) => x.remove()); return; }
+    if (!settings.on) { document.querySelectorAll(`[${RBOX}]`).forEach((x) => x.remove()); rows.forEach((li) => tintStats(li, false)); return; }
     for (const li of new Set(rows)) {
+      tintStats(li, true);
       const elo = elosIn(li)[0];
       if (elo === undefined) continue;
       const { rating, games } = rowStats(li);
