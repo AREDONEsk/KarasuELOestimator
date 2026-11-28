@@ -975,6 +975,8 @@
   const LB_KEY = "lbForm";
   const LB_TTL = 30 * 60000;
   const LB_BATCH = 50; // Karasu shows 50 rows a page
+  const LB_SORT = "lbSortForm";
+  let lbSort = false; // sort the page's rows by form (remembered)
   let lbCache = null; // steam ID -> { r: avg HLTV or null, n: games, t: fetched at }
   const lbAsking = new Set();
   let lbFailedAt = 0;
@@ -1013,13 +1015,19 @@
     const lvlCol = ths.findIndex((c) => /^lvl$/i.test(c.textContent.trim()));
     if (eloCol < 0) { ours.forEach((x) => x.remove()); return; }
     const after = lvlCol >= 0 ? lvlCol : eloCol;
-    if (!head.querySelector(`[${RBOX}="lbh"]`)) {
-      const th = ths[after].cloneNode(false);
+    let th = head.querySelector(`[${RBOX}="lbh"]`);
+    if (!th) {
+      th = ths[after].cloneNode(false);
       th.setAttribute(RBOX, "lbh");
-      th.textContent = "Form";
-      th.title = "Form Elo: Elo + 500 × (last-30 HLTV − 1), badged by the level it would be (Karasu ELO Estimator)";
+      th.style.cursor = "pointer";
+      th.style.userSelect = "none";
+      th.addEventListener("click", () => { lbSort = !lbSort; save("local", { [LB_SORT]: lbSort }); decorateLeaderboard(); });
       ths[after].after(th);
     }
+    const label = lbSort ? "Form ▼" : "Form";
+    if (th.textContent !== label) th.textContent = label;
+    th.title = "Form Elo: Elo + 500 × (last-30 HLTV − 1), badged by the level it would be (Karasu ELO Estimator). "
+      + (lbSort ? "Sorted by form on this page; click to go back to Karasu's order." : "Click to sort this page by form.");
     const missing = [];
     for (const tr of table.querySelectorAll("tr.leaderboard-row")) {
       const steam = tr.querySelector('a[href*="/players/"]')?.getAttribute("href").match(/\/players\/(\d+)/)?.[1];
@@ -1029,6 +1037,7 @@
       if (!steam || !Number.isFinite(elo) || !cells[after]) { td?.remove(); continue; }
       const c = lbCache[steam];
       if (!lbFresh(steam)) missing.push(steam);
+      tr.dataset.keeFe = c && c.r !== null ? Math.max(0, Math.round(M.formElo(elo, c.r, c.n))) : "";
       const key = c ? `${steam}|${elo}|${c.r}|${c.n}` : `${steam}|${elo}|…`;
       if (td && td.dataset.key === key && td.previousElementSibling === cells[after]) continue;
       td?.remove();
@@ -1064,7 +1073,24 @@
       td.append(host);
       cells[after].after(td);
     }
+    sortLeaderboard(table);
     if (missing.length) loadLbForms(missing);
+  }
+
+  // Sorting by form only moves the 50 rows already on the page (sorting all 11,000 players would
+  // need everyone's rating). The order is worked out fresh every time, so it holds when Karasu
+  // redraws the rows, and switching it off puts them back in Karasu's rank order.
+  function sortLeaderboard(table) {
+    const rows = [...table.querySelectorAll("tr.leaderboard-row")];
+    if (!rows.length || (!lbSort && !table.dataset.keeSorted)) return;
+    const rank = (tr, i) => { const n = parseInt(tr.cells[0]?.textContent.replace(/\D/g, ""), 10); return Number.isFinite(n) ? n : 1e6 + i; };
+    const fe = (tr) => (tr.dataset.keeFe ? Number(tr.dataset.keeFe) : -1);
+    const keyed = rows.map((tr, i) => ({ tr, rank: rank(tr, i), fe: fe(tr) }));
+    keyed.sort((a, b) => (lbSort ? b.fe - a.fe : 0) || a.rank - b.rank);
+    if (lbSort) table.dataset.keeSorted = "1"; else delete table.dataset.keeSorted;
+    if (keyed.every((k, i) => k.tr === rows[i])) return;
+    const body = rows[0].parentElement;
+    for (const k of keyed) if (k.tr.parentElement === body) body.append(k.tr);
   }
 
   // ---------- profile page: where this player's form is taking them ----------
@@ -1294,7 +1320,7 @@
   });
   watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
 
-  chrome.storage.local.get({ [SB_KEY]: {}, [LB_KEY]: {} }, (v) => { saved = v[SB_KEY] || {}; lbCache = v[LB_KEY] || {}; refresh(true); });
+  chrome.storage.local.get({ [SB_KEY]: {}, [LB_KEY]: {}, [LB_SORT]: false }, (v) => { saved = v[SB_KEY] || {}; lbCache = v[LB_KEY] || {}; lbSort = !!v[LB_SORT]; refresh(true); });
   chrome.storage.sync.get({ on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null }, (v) => { settings = v; refresh(true); });
   chrome.storage.onChanged.addListener((c, area) => {
     if (area !== "sync") return;
