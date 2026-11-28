@@ -842,7 +842,7 @@
 
   // ---------- match overview rows: level badge by the name, form Elo by the Elo ----------
   // Karasu's own player rows ("rdo1337 · 1 548 Elo · W L L L L"). Next to each name goes a small
-  // level hexagon for their current Elo, and after the Elo their form Elo: Elo + 500 × (last-30
+  // level hexagon for the level their form Elo would be, and after the Elo their form Elo: Elo + 500 × (last-30
   // HLTV − 1), the same form the win chance uses, with the difference in green or red.
   const RBOX = "data-kee-row";
   const RCSS = `
@@ -885,12 +885,16 @@
     for (const li of new Set(rows)) {
       const elo = elosIn(li)[0];
       if (elo === undefined) continue;
-      const lv = M.level(elo);
+      const { rating, games } = rowStats(li);
+      const hasForm = Number.isFinite(rating);
+      const fe = hasForm ? Math.max(0, Math.round(M.formElo(elo, rating, games))) : elo, fd = fe - elo;
+      // The badge is the level their form Elo would be (their real level if there's no rating).
+      const lv = M.level(fe);
       const name = li.querySelector(".match-overview__player-name");
       if (name) rowDeco(li, name, "lv", lv.label, () => {
         const x = h("span", "hx");
         x.style.setProperty("--lc", lv.color);
-        x.title = `${lv.label} · ${elo.toLocaleString()} Elo`;
+        x.title = hasForm ? `Form level: ${lv.label} (form ${fe.toLocaleString()}, real ${M.level(elo).label})` : `${lv.label} · ${elo.toLocaleString()} Elo`;
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.setAttribute("viewBox", "0 0 42 46");
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -900,9 +904,7 @@
         return x;
       });
       const rank = li.querySelector(".match-overview__rank");
-      const { rating, games } = rowStats(li);
-      if (!rank || !Number.isFinite(rating)) { li.querySelector(`[${RBOX}="form"]`)?.remove(); continue; }
-      const fe = Math.max(0, Math.round(M.formElo(elo, rating, games))), fd = fe - elo;
+      if (!rank || !hasForm) { li.querySelector(`[${RBOX}="form"]`)?.remove(); continue; }
       rowDeco(li, rank, "form", `${fe}|${fd}`, () => {
         const f = h("span", "f", "Form ");
         const v = h("b", "", fe.toLocaleString());
