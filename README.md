@@ -19,6 +19,7 @@
 - **Win chance** for both teams, from the teams' average Elo.
 - **Estimated Elo gain and loss** at your usual HLTV rating, plus the range from a bad game (0.6 rating) to a great game (1.69 rating).
 - **Shown on the Overview tab** of every match, before, during and after the game.
+- **Premade parties marked**: players who queued together share a coloured link tag (A, B, C…) on the player chips and on Karasu's own player rows. This comes from the same lineup request the flags use, so it adds no API calls. Across 2,000 recent 5v5 matches the team with more premade players won about 50% of the time, so premades don't change the win chance.
 - **Level outlook on player profiles**: from the last-30 HLTV rating and win rate, the average Elo per game and roughly how many games until the next level (or a level drop), plus the player's HLTV-form Elo.
 - **Optional auto-accept** with an adjustable delay. It is off until you turn it on.
 
