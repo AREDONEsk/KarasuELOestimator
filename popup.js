@@ -182,3 +182,85 @@ $("acceptDelay").addEventListener("change", (e) => {
 });
 rating.addEventListener("input", () => show(clean(rating.value), null));
 rating.addEventListener("change", () => chrome.storage.sync.set({ rating: clean(rating.value) }));
+
+// Session tracker: your latest session (games started less than 3 hours apart), from Karasu's
+// public stats API. Shown from the cache right away, then refreshed if it's over 2 minutes old.
+const S = globalThis.KarasuSession;
+const svgEl = (tag, attrs) => {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+};
+const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "±0");
+
+function drawGraph(s) {
+  const g = $("sGraph");
+  g.replaceChildren();
+  const W = 240, H = 64, PX = 6, PT = 6, PB = 6;
+  const ys = [s.start, ...s.games.map((x) => x.post ?? x.pre + x.d)];
+  let lo = Math.min(...ys), hi = Math.max(...ys);
+  if (hi - lo < 20) { const m = (hi + lo) / 2; lo = m - 10; hi = m + 10; }
+  const X = (i) => PX + (i / (ys.length - 1)) * (W - 2 * PX);
+  const Y = (v) => PT + (1 - (v - lo) / (hi - lo)) * (H - PT - PB);
+  const col = s.net > 0 ? "#4ade80" : s.net < 0 ? "#f87171" : "#8a8b96";
+  const defs = svgEl("defs", {});
+  const grad = svgEl("linearGradient", { id: "sFill", x1: 0, y1: 0, x2: 0, y2: 1 });
+  grad.append(svgEl("stop", { offset: 0, "stop-color": col, "stop-opacity": 0.28 }),
+    svgEl("stop", { offset: 1, "stop-color": col, "stop-opacity": 0 }));
+  defs.append(grad);
+  const pts = ys.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
+  g.append(defs,
+    svgEl("line", { class: "base", x1: PX, x2: W - PX, y1: Y(s.start), y2: Y(s.start) }),
+    svgEl("path", { d: `M${pts[0]} L${pts.slice(1).join(" L")} L${X(ys.length - 1)},${H} L${X(0)},${H}Z`, fill: "url(#sFill)" }),
+    svgEl("polyline", { class: "ln", points: pts.join(" "), stroke: col, style: `filter: drop-shadow(0 0 4px ${col}80)` }));
+  g.append(svgEl("circle", { cx: X(0), cy: Y(s.start), r: 2.5, fill: "#62636e" }));
+  s.games.forEach((x, i) => {
+    const c = svgEl("circle", { cx: X(i + 1), cy: Y(ys[i + 1]), r: 3.5, fill: x.win ? "#4ade80" : "#f87171" });
+    const tip = svgEl("title", {});
+    tip.textContent = `${hhmm(x.t)} · ${x.win ? "Win" : "Loss"} ${signed(x.d)} → ${ys[i + 1]} Elo`
+      + (x.h !== null ? ` · HLTV ${x.h.toFixed(2)}` : "");
+    c.append(tip);
+    g.append(c);
+  });
+}
+
+function showSession(cache, steam) {
+  const s = cache && S.session(cache.games);
+  $("sBody").hidden = !s;
+  $("sEmpty").hidden = !!s;
+  $("sLive").hidden = !(s && s.live);
+  $("sSrc").textContent = cache ? ago(cache.t) : "";
+  if (!s) {
+    $("sLbl").textContent = "Session";
+    $("sEmpty").textContent = !steam ? "Open karasu.live while logged in to track your session"
+      : cache ? "No rated games yet" : "Couldn't load your games. Open karasu.live to refresh";
+    return;
+  }
+  const day = new Date(s.games[s.games.length - 1].t).toLocaleDateString([], { day: "numeric", month: "short" });
+  $("sLbl").textContent = s.today ? "Today's session" : `Last session · ${day}`;
+  $("sNet").textContent = signed(s.net);
+  $("sNet").className = s.net > 0 ? "pos" : s.net < 0 ? "neg" : "";
+  const wl = document.createElement("i");
+  wl.textContent = "–";
+  const w = document.createElement("span"); w.className = "pos"; w.textContent = s.w;
+  const l = document.createElement("span"); l.className = "neg"; l.textContent = s.l;
+  $("sWL").replaceChildren(w, wl, l);
+  $("sH").textContent = s.hltv === null ? "–" : s.hltv.toFixed(2);
+  $("sH").className = s.hltv === null ? "" : s.hltv >= 1.1 ? "pos" : s.hltv < 0.9 ? "neg" : "";
+  $("sGames").textContent = `${s.games.length} game${s.games.length === 1 ? "" : "s"} · ${hhmm(s.games[0].t)}–${hhmm(s.games[s.games.length - 1].t)}`;
+  $("sElo").textContent = `${s.start} → ${s.end} Elo`;
+  drawGraph(s);
+}
+
+function loadSession() {
+  chrome.storage.sync.get({ mySteam: null }, ({ mySteam }) => {
+    if (!mySteam) { showSession(null, null); return; }
+    S.load(mySteam, (c) => showSession(c, mySteam));
+  });
+}
+loadSession();
+chrome.storage.onChanged.addListener((c, area) => {
+  if (area === "sync" && c.mySteam) loadSession();
+  if (area === "local" && c[S.KEY]?.newValue) chrome.storage.sync.get({ mySteam: null }, ({ mySteam }) => showSession(c[S.KEY].newValue, mySteam));
+});

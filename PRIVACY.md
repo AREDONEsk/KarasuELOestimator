@@ -1,6 +1,6 @@
 # Karasu ELO Estimator – Privacy Policy
 
-Last updated: 27 November 2026
+Last updated: 28 November 2026
 
 Karasu ELO Estimator is an unofficial browser extension for karasu.live. It is not affiliated with, endorsed by, or made by Karasu.
 
@@ -19,7 +19,7 @@ It uses this only to calculate each team's win chance and the estimated Elo gain
 
 ## Network requests
 
-When you open your own karasu.live profile, the extension asks karasu.live's public stats API (api.karasu.live) for the HLTV ratings of your last 30 games, the same data your profile page loads. It sends only your public Steam ID, which is already in the page address. It does this at most once every 5 minutes, and uses the answer only to work out your usual HLTV range. The extension makes no other network requests, and never contacts any server run by the developer.
+When you open your own karasu.live profile, the extension asks karasu.live's public stats API (api.karasu.live) for the HLTV ratings of your last 30 games, the same data your profile page loads. It sends only your public Steam ID, which is already in the page address. It does this at most once every 5 minutes, and uses the answer only to work out your usual HLTV range. To show your current play session in the extension's popup (net Elo, wins and losses, average HLTV rating and an Elo graph), the extension also asks the same API for your last 30 games' Elo changes and HLTV ratings, using your public Steam ID read from the "My stats" link on karasu.live. It does this at most once every 2 minutes, and right after your Elo changes. The extension makes no other network requests, and never contacts any server run by the developer.
 
 ## What the extension stores
 
@@ -27,6 +27,7 @@ The extension saves a small amount of data using Chrome's built-in extension sto
 
 - whether the overlay is turned on
 - your own current Elo, your usual HLTV rating and HLTV range, used for the estimate, and when they were last updated
+- your public Steam ID and a copy of your last 30 games (time, result, Elo change and HLTV rating), for the session tracker
 - whether auto-accept is turned on, and the delay before accepting
 - for up to the 50 most recent finished matches you opened, the scoreboard rows shown there (player names and each player's Elo before that match), so the estimate stays correct when you return to the match overview
 

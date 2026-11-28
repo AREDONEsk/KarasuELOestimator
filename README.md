@@ -21,6 +21,7 @@
 - **Shown on the Overview tab** of every match, before, during and after the game.
 - **Premade parties marked**: players who queued together share a coloured link tag (A, B, C…) on the player chips and on Karasu's own player rows. This comes from the same lineup request the flags use, so it adds no API calls. Across 2,000 recent 5v5 matches the team with more premade players won about 50% of the time, so premades don't change the win chance.
 - **Level outlook on player profiles**: from the last-30 HLTV rating and win rate, the average Elo per game and roughly how many games until the next level (or a level drop), plus the player's HLTV-form Elo.
+- **Session tracker in the popup**: your current session (games started less than 3 hours apart, or your last session if you're not playing) with net Elo, wins and losses, average HLTV rating and an Elo graph.
 - **Optional auto-accept** with an adjustable delay. It is off until you turn it on.
 
 ## How the estimate works
@@ -54,6 +55,7 @@ The model is in [`model.js`](model.js).
 | `manifest.json` | Extension setup and permissions |
 | `model.js` | The Elo estimate formula |
 | `content.js` | Reads both teams' Elo on the match page and draws the estimate cards |
+| `session.js` | Loads your recent games for the session tracker |
 | `accept.js` | Optional auto-accept |
 | `popup.html`, `popup.js` | Settings popup |
 | `icons/`, `assets/icon.svg` | Icons |
