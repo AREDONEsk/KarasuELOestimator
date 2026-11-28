@@ -1271,6 +1271,19 @@
     .pill .hex { width: 14px; height: 15px; }
     .pill .tr { font-weight: 800; font-size: 12px; line-height: 1; cursor: help; }
     .pill.warn { border-color: rgba(251,191,36,.35); color: #fbbf24; }
+    .pl { --c: var(--lc); --c2: color-mix(in srgb, var(--lc) 16%, transparent); margin-bottom: 8px;
+      display: flex; align-items: center; gap: 11px; }
+    .pl .hex { width: 34px; height: 37px; }
+    .pl .mid { flex: 1; min-width: 0; }
+    .pl .big { margin-top: 2px; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em; white-space: nowrap; }
+    .pl .big .lvn { color: var(--lc); text-shadow: 0 0 12px var(--c2); }
+    .pl .big small { font-size: 12px; font-weight: 600; color: #a1a1aa; margin-left: 6px; font-variant-numeric: tabular-nums; }
+    .pl .why { margin-top: 2px; font-size: 10.5px; font-weight: 500; color: #8a8b96; font-variant-numeric: tabular-nums;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pl .why b { font-weight: 700; color: #d4d4d8; } .pl .why .up { color: #4ade80; } .pl .why .dn { color: #f87171; }
+    .pl .side { flex: none; text-align: right; }
+    .pl .side .tr { display: block; font-size: 20px; font-weight: 800; line-height: 1; cursor: help; }
+    .pl .side small { display: block; margin-top: 2px; font-size: 10px; font-weight: 600; color: #6f707b; }
     @media (prefers-reduced-motion: reduce) { .est, .rail .ghost { animation: none; } }
   `;
   const MAX_GAMES = 200; // beyond this it says "200+ games"
@@ -1414,7 +1427,6 @@
     const fe = Math.max(0, Math.round(M.formElo(p.elo, p.rating, games)));
     const flv = M.level(fe);
     const ftr = steam ? playerTrends.get(steam) : null;
-    pills.append(pill("Form", h("b", "", fe.toLocaleString()), hexOf(flv, false, 22.5), ...(ftr ? [trendArrow(ftr)] : [])));
     if (few) pills.append(Object.assign(pill(`Only ${games} game${games === 1 ? "" : "s"} · damped`), { className: "pill warn" }));
 
     box.title = `Estimate from the last ${games} games: an even match each game, won ${Math.round(winRate * 100)}% of the time at a ${p.rating.toFixed(2)} HLTV rating`
@@ -1422,7 +1434,32 @@
       + `. Striped bar: where ${PREVIEW_GAMES} more games at this pace would take you.`
       + ` Form Elo = Elo + 500 × (HLTV − 1), the same form the match-room win chance uses.`;
     box.append(head, track, scale, pills);
-    root.append(style, box);
+
+    // "Plays like": their form Elo (Elo + 500 x (HLTV − 1), the number the match-room win chance
+    // uses) as the level they're playing at right now, in its own card above the outlook.
+    const pl = h("div", "est pl");
+    pl.style.setProperty("--lc", flv.color);
+    const plMid = h("div", "mid");
+    const plBig = h("div", "big");
+    plBig.append(h("span", "lvn", flv.label), h("small", "", `${fe.toLocaleString()} form Elo`));
+    const diff = fe - p.elo, real = t.level;
+    const plWhy = h("div", "why");
+    const steps = M.levels.findIndex(([, l]) => l === real.label) - M.levels.findIndex(([, l]) => l === flv.label);
+    plWhy.append(
+      steps > 0 ? h("span", "up", `${steps === 1 ? "A level" : `${steps} levels`} above`) : steps < 0 ? h("span", "dn", `${-steps === 1 ? "A level" : `${-steps} levels`} below`) : "Same as",
+      ` ${onMyProfile() ? "your" : "their"} ${real.label} · `, h("b", "", `${diff >= 0 ? "+" : "−"}${Math.abs(diff)}`), ` from HLTV ${p.rating.toFixed(2)}`);
+    plMid.append(h("div", "tag", "Plays like"), plBig, plWhy);
+    pl.append(hexOf(flv, false), plMid);
+    if (ftr) {
+      const side = h("div", "side");
+      side.append(trendArrow(ftr), h("small", "", ftr.dir === "up" ? "rising" : ftr.dir === "down" ? "falling" : "steady"));
+      pl.append(side);
+    }
+    pl.title = `Form Elo = ${p.elo.toLocaleString()} Elo + 500 × (HLTV ${p.rating.toFixed(2)} − 1)`
+      + (few ? `, damped for only ${games} game${games === 1 ? "" : "s"}` : "")
+      + `: the Elo their last ${games} games play like, and the level that would be.`
+      + (ftr ? ` Arrow: last 10 games ${ftr.last10.toFixed(2)} vs ${ftr.last30.toFixed(2)} over the last 30.` : "");
+    root.append(style, pl, box);
     p.standing.append(host);
   }
 
