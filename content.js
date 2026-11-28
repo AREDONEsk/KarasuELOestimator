@@ -653,6 +653,7 @@
     rememberMyRange();
     refreshProfile();
     decorateRows();
+    decorateLeaderboard();
     if (!settings.on) { old.forEach((b) => b.remove()); lastKey = ""; return; }
     rememberScoreboard();
     const { teams, finished } = readTeams();
@@ -964,6 +965,108 @@
     }
   }
 
+  // ---------- leaderboard: a Form column ----------
+  // Karasu's leaderboard has no ratings, so the last-30 HLTV average of every player on the page
+  // is fetched in ONE request (a GraphQL query with one small server-side average per player, about
+  // 2 KB back for 50 players). Results are kept in chrome.storage.local for 30 minutes, so paging
+  // back and forth or reopening the board within that time costs nothing; only players not seen
+  // lately are asked for. The column shows their form Elo (Elo + 500 × (HLTV − 1), like the match
+  // rows), coloured and badged by the level that form Elo would be.
+  const LB_KEY = "lbForm";
+  const LB_TTL = 30 * 60000;
+  const LB_BATCH = 50; // Karasu shows 50 rows a page
+  let lbCache = null; // steam ID -> { r: avg HLTV or null, n: games, t: fetched at }
+  const lbAsking = new Set();
+  let lbFailedAt = 0;
+  const lbFresh = (s) => lbCache?.[s] && Date.now() - lbCache[s].t < LB_TTL;
+  async function loadLbForms(ids) {
+    const want = ids.filter((s) => /^\d{5,20}$/.test(s) && !lbFresh(s) && !lbAsking.has(s)).slice(0, LB_BATCH);
+    if (!want.length || Date.now() - lbFailedAt < 60000) return;
+    want.forEach((s) => lbAsking.add(s));
+    const query = `query {${want.map((s, i) => ` p${i}: v_player_match_map_hltv_aggregate(where: { steam_id: { _eq: "${s}" } },`
+      + ` order_by: { match: { started_at: desc_nulls_last } }, limit: 30) { aggregate { count avg { hltv_rating } } }`).join("")} }`;
+    try {
+      const res = await fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query }) });
+      const data = (await res.json())?.data;
+      if (!data) throw new Error("no data");
+      const now = Date.now();
+      want.forEach((s, i) => {
+        const a = data[`p${i}`]?.aggregate;
+        const r = Number(a?.avg?.hltv_rating);
+        lbCache[s] = { r: a?.count && Number.isFinite(r) ? Math.round(r * 1000) / 1000 : null, n: a?.count || 0, t: now };
+      });
+      // Keep the stored cache small: drop anything older than a day.
+      for (const [s, v] of Object.entries(lbCache)) if (now - v.t > 24 * 3600000) delete lbCache[s];
+      save("local", { [LB_KEY]: lbCache });
+      if (alive()) decorateLeaderboard();
+    } catch { lbFailedAt = Date.now(); } finally { want.forEach((s) => lbAsking.delete(s)); }
+  }
+
+  function decorateLeaderboard() {
+    const table = document.querySelector("table.leaderboard-table");
+    const ours = table ? table.querySelectorAll(`[${RBOX}="lbh"], [${RBOX}="lb"]`) : [];
+    if (!table || !settings.on || !/^\/leaderboard/.test(location.pathname)) { ours.forEach((x) => x.remove()); return; }
+    if (!lbCache) return; // still reading the stored cache
+    const head = table.tHead?.rows[0];
+    const ths = head ? [...head.cells].filter((c) => !c.hasAttribute(RBOX)) : [];
+    const eloCol = ths.findIndex((c) => /^elo$/i.test(c.textContent.trim()));
+    const lvlCol = ths.findIndex((c) => /^lvl$/i.test(c.textContent.trim()));
+    if (eloCol < 0) { ours.forEach((x) => x.remove()); return; }
+    const after = lvlCol >= 0 ? lvlCol : eloCol;
+    if (!head.querySelector(`[${RBOX}="lbh"]`)) {
+      const th = ths[after].cloneNode(false);
+      th.setAttribute(RBOX, "lbh");
+      th.textContent = "Form";
+      th.title = "Form Elo: Elo + 500 × (last-30 HLTV − 1), badged by the level it would be (Karasu ELO Estimator)";
+      ths[after].after(th);
+    }
+    const missing = [];
+    for (const tr of table.querySelectorAll("tr.leaderboard-row")) {
+      const steam = tr.querySelector('a[href*="/players/"]')?.getAttribute("href").match(/\/players\/(\d+)/)?.[1];
+      const cells = [...tr.cells].filter((c) => !c.hasAttribute(RBOX));
+      const elo = cells[eloCol] ? toInt(cells[eloCol].textContent) : NaN;
+      let td = tr.querySelector(`[${RBOX}="lb"]`);
+      if (!steam || !Number.isFinite(elo) || !cells[after]) { td?.remove(); continue; }
+      const c = lbCache[steam];
+      if (!lbFresh(steam)) missing.push(steam);
+      const key = c ? `${steam}|${elo}|${c.r}|${c.n}` : `${steam}|${elo}|…`;
+      if (td && td.dataset.key === key && td.previousElementSibling === cells[after]) continue;
+      td?.remove();
+      td = cells[after].cloneNode(false);
+      td.removeAttribute("style");
+      td.setAttribute(RBOX, "lb");
+      td.dataset.key = key;
+      const host = h("span");
+      const root = host.attachShadow({ mode: "open" });
+      const style = h("style");
+      style.textContent = RCSS + `.lbf { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800;
+        font-variant-numeric: tabular-nums; white-space: nowrap; } .lbf.wait { color: #4b4c55; font-weight: 600; }`;
+      if (!c) {
+        root.append(style, h("span", "lbf wait", "…"));
+      } else if (c.r === null) {
+        root.append(style, h("span", "lbf wait", "—"));
+        td.title = "No rated games yet";
+      } else {
+        const fe = Math.max(0, Math.round(M.formElo(elo, c.r, c.n)));
+        const lv = M.level(fe);
+        const box = h("span", "lbf");
+        const x = h("span", "hx");
+        x.style.setProperty("--lc", lv.color);
+        x.append(hexSvg(lv, 22));
+        const v = h("span", "", fe.toLocaleString());
+        v.style.color = lv.color;
+        box.append(x, v);
+        root.append(style, box);
+        td.title = `Form Elo: ${elo.toLocaleString()} Elo + 500 × (HLTV ${c.r.toFixed(2)} − 1)`
+          + (c.n < M.FORM_FULL_GAMES ? `, damped for only ${c.n} game${c.n === 1 ? "" : "s"}` : ` over the last ${c.n} games`)
+          + ` · would be ${lv.label}`;
+      }
+      td.append(host);
+      cells[after].after(td);
+    }
+    if (missing.length) loadLbForms(missing);
+  }
+
   // ---------- profile page: where this player's form is taking them ----------
   // Under "Level 3 · 294 to next" on any player's profile. From the "Last 30 games" box it takes
   // the HLTV rating average and the win rate, and works out the average Elo per game with the
@@ -1191,7 +1294,7 @@
   });
   watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
 
-  chrome.storage.local.get({ [SB_KEY]: {} }, (v) => { saved = v[SB_KEY] || {}; refresh(true); });
+  chrome.storage.local.get({ [SB_KEY]: {}, [LB_KEY]: {} }, (v) => { saved = v[SB_KEY] || {}; lbCache = v[LB_KEY] || {}; refresh(true); });
   chrome.storage.sync.get({ on: true, rating: 1.0, ratingAuto: false, myElo: null, ratingLow: null, ratingHigh: null }, (v) => { settings = v; refresh(true); });
   chrome.storage.onChanged.addListener((c, area) => {
     if (area !== "sync") return;
