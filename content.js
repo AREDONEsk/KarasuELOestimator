@@ -299,6 +299,11 @@
     .chip.sel { border-color: rgba(255,255,255,.7); background: rgba(255,255,255,.07);
       box-shadow: 0 0 0 1px rgba(255,255,255,.35), 0 0 12px rgba(255,255,255,.12); }
     .tile .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chip.party::before { content: ""; position: absolute; left: 7px; right: 7px; top: -1px; height: 2px; border-radius: 2px;
+      background: var(--pc); box-shadow: 0 0 6px var(--pc); }
+    .pty { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; flex: none; color: var(--pc);
+      font-size: 9.5px; font-weight: 800; line-height: 1; }
+    .pty svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
     @media (prefers-reduced-motion: reduce) { .card, .split i { animation: none; } }`;
 
   // HLTV rating colour: red below 1.00, white to 1.25, green to 1.60, gold from 1.60.
@@ -406,6 +411,24 @@
     return hex;
   }
 
+  // Premade mark: a link icon and the party's letter, in the party's colour.
+  const LINK = ["M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71", "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"];
+  function partyTag(party) {
+    const ns = "http://www.w3.org/2000/svg";
+    const t = h("span", "pty");
+    t.style.setProperty("--pc", party.color);
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    for (const d of LINK) {
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("d", d);
+      svg.append(path);
+    }
+    t.append(svg, h("b", "", party.tag));
+    return t;
+  }
+  const partyText = (party, name) => `premade ${party.tag} (party of ${party.names.length}) with ${party.names.filter((x) => x !== name).join(", ")}`;
+
   // One chip per player: level, name, how much win chance they add vs a team-average player
   // (using HLTV form), their Elo and last-30 HLTV, and their country flag bottom right.
   // Clicking a chip shows that player's win/lose Elo in the tiles above; clicking it again
@@ -429,6 +452,12 @@
       chip.style.setProperty("--lc", lv.color);
       const n = h("div", "cn");
       n.append(miniHex(lv), h("span", "nm", p.name));
+      const party = partyOf(p.name);
+      if (party) {
+        chip.classList.add("party");
+        chip.style.setProperty("--pc", party.color);
+        n.append(partyTag(party));
+      }
       const imp = Math.round(p.impact * 10) / 10;
       const w = h("div", `cw ${imp >= 0 ? "up-t" : "dn-t"}`, `${imp >= 0 ? "+" : "−"}${Math.abs(imp).toFixed(1)}%`);
       const e = h("div", "ce", `${Math.round(p.pre).toLocaleString()} Elo`);
@@ -455,6 +484,7 @@
         + `${Number.isFinite(p.games) ? ` over ${p.games} game${p.games === 1 ? "" : "s"}` : ""}`
         + `${Number.isFinite(p.games) && p.games < M.FORM_FULL_GAMES ? ` (counted as ${M.formRating(p.rating, p.games).toFixed(2)}: few games)` : ""}`
         + ` · form Elo ${Math.round(p.eff).toLocaleString()} · bar = form vs team average`
+        + (party ? ` · ${partyText(party, p.name)}` : "")
         + (isMe ? "" : isSel ? (meIn ? " · click to show yours again" : "") : " · click to see their win/lose Elo");
       chip.append(n, w, e, mb);
       wrap.append(chip);
@@ -780,10 +810,16 @@
 
   // Country and Steam ID of each player in this match, by name, from the same public API:
   // the match page's address ends in the match's ID. Fetched once per match, then the panel redraws.
+  // The same request also says who queued together: players sharing a party_id came from one
+  // matchmaking lobby (a premade), so marking parties costs no extra API call.
   const LINEUP_QUERY = `query ($m: uuid!) { matches_by_pk(id: $m) {
-    lineup_1 { lineup_players { player { name country steam_id } } }
-    lineup_2 { lineup_players { player { name country steam_id } } } } }`;
-  const lineups = new Map(); // match ID -> Map(name -> { country, steam }), or null while loading
+    lineup_1 { lineup_players { party_id player { name country steam_id } } }
+    lineup_2 { lineup_players { party_id player { name country steam_id } } } } }`;
+  const lineups = new Map(); // match ID -> Map(name -> { country, steam, party }), or null while loading
+  // One colour (and letter, for colour-blind eyes) per premade in the match. Kept clear of the
+  // win/lose green and red.
+  const PARTY_COLORS = ["#60a5fa", "#c084fc", "#facc15", "#22d3ee", "#f472b6"];
+  const partyOf = (name) => lineupInfo(name)?.party || null;
   const pageMatchId = () => location.pathname.match(/\/matches?\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)?.[1];
   function lineupInfo(name) {
     const id = pageMatchId();
@@ -798,8 +834,19 @@
         body: JSON.stringify({ query: LINEUP_QUERY, variables: { m: id } }) });
       const m = (await res.json())?.data?.matches_by_pk;
       const map = new Map();
+      const groups = new Map(); // party ID -> names, in lineup order
       for (const l of [m?.lineup_1, m?.lineup_2]) for (const lp of l?.lineup_players || []) {
-        if (lp.player?.name) map.set(lp.player.name, { country: lp.player.country || null, steam: lp.player.steam_id || null });
+        if (!lp.player?.name) continue;
+        map.set(lp.player.name, { country: lp.player.country || null, steam: lp.player.steam_id || null, party: null });
+        if (lp.party_id) groups.set(lp.party_id, [...(groups.get(lp.party_id) || []), lp.player.name]);
+      }
+      // A party of one is a solo queue; only real premades (2+) get a mark.
+      let n = 0;
+      for (const names of groups.values()) {
+        if (names.length < 2) continue;
+        const party = { tag: String.fromCharCode(65 + n), color: PARTY_COLORS[n % PARTY_COLORS.length], names };
+        for (const nm of names) map.get(nm).party = party;
+        n++;
       }
       lineups.set(id, map);
       if (map.size && alive()) refresh(true);
@@ -886,6 +933,11 @@
       background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
       font-size: 11px; font-weight: 600; color: #8a8b96; font-variant-numeric: tabular-nums; line-height: 1.5; }
     .f b { font-weight: 800; } .f .u { color: #4ade80; } .f .d { color: #f87171; }
+    :host([data-kee-row="party"]) { margin-left: 5px; }
+    .pty { display: inline-flex; align-items: center; gap: 3px; padding: 1px 5px; border-radius: 5px; color: var(--pc);
+      background: color-mix(in srgb, var(--pc) 12%, transparent); border: 1px solid color-mix(in srgb, var(--pc) 35%, transparent);
+      font-size: 10.5px; font-weight: 800; line-height: 1.4; }
+    .pty svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
   `;
   // Last-30 HLTV average and how many games it covers, from one overview row.
   function rowStats(li) {
@@ -950,6 +1002,16 @@
         x.append(hexSvg(lv, 22));
         return x;
       });
+      // Premade mark after the badge: same colour and letter as on the chips.
+      const pname = name?.textContent.trim();
+      const party = pname ? partyOf(pname) : null;
+      const pAnchor = li.querySelector(`[${RBOX}="lv"]`) || name;
+      if (party && pAnchor) rowDeco(li, pAnchor, "party", party.tag + party.color + party.names.join(","), () => {
+        const t = partyTag(party);
+        t.title = partyText(party, pname);
+        return t;
+      });
+      else li.querySelector(`[${RBOX}="party"]`)?.remove();
       const rank = li.querySelector(".match-overview__rank");
       if (!rank || !hasForm) { li.querySelector(`[${RBOX}="form"]`)?.remove(); continue; }
       rowDeco(li, rank, "form", String(fe), () => {
