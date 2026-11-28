@@ -409,8 +409,8 @@
   // One chip per player: level, name, how much win chance they add vs a team-average player
   // (using HLTV form), their Elo and last-30 HLTV, and their country flag bottom right.
   // Clicking a chip shows that player's win/lose Elo in the tiles above; clicking it again
-  // (or your own chip) goes back to you.
-  function playerChips(form, selected, onPick) {
+  // (or your own chip) goes back to you, or to the team's first player when you aren't in the match.
+  function playerChips(form, selected, onPick, meIn = true) {
     const wrap = h("div", "chips");
     const me = myName();
     for (const p of form.players) {
@@ -455,7 +455,7 @@
         + `${Number.isFinite(p.games) ? ` over ${p.games} game${p.games === 1 ? "" : "s"}` : ""}`
         + `${Number.isFinite(p.games) && p.games < M.FORM_FULL_GAMES ? ` (counted as ${M.formRating(p.rating, p.games).toFixed(2)}: few games)` : ""}`
         + ` · form Elo ${Math.round(p.eff).toLocaleString()} · bar = form vs team average`
-        + (isMe ? "" : isSel ? " · click to show yours again" : " · click to see their win/lose Elo");
+        + (isMe ? "" : isSel ? (meIn ? " · click to show yours again" : "") : " · click to see their win/lose Elo");
       chip.append(n, w, e, mb);
       wrap.append(chip);
     }
@@ -465,7 +465,7 @@
   // The win/lose tiles and the line explaining them, for you (who = null) or for a player picked
   // from the chips. A picked player is worked out at their last-30 HLTV average (1.00 if Karasu
   // shows none), with their own usual range once it has loaded from Karasu's API.
-  function rangeParts(ownAvg, enemyAvg, finished, who) {
+  function rangeParts(ownAvg, enemyAvg, finished, who, meIn = true) {
     const other = who && Number.isFinite(who.rating) ? who.rating : 1;
     const r = who ? r2(other) : settings.rating;
     const now = M.estimate(ownAvg, enemyAvg, r);
@@ -500,7 +500,7 @@
       else if (Number.isFinite(who.rating)) foot.append("their last-30 HLTV ", h("b", "", r.toFixed(2)),
         Number.isFinite(who.games) ? ` (${who.games} game${who.games === 1 ? "" : "s"})` : "");
       else foot.append("HLTV ", h("b", "", "1.00"), " (no rating shown)");
-      foot.append(`${ends} · click again for yours`);
+      foot.append(meIn ? `${ends} · click again for yours` : `${ends} · not your match, so showing the first player`);
     } else if (range) foot.append("Your usual HLTV ", h("b", "", `${range[0].toFixed(2)}–${range[1].toFixed(2)}`),
       " · dot = your ", h("b", "", r.toFixed(2)), ` average${ends}`);
     else foot.append("At your ", h("b", "", r.toFixed(2)), ` HLTV rating${ends}`);
@@ -516,7 +516,7 @@
     picked.names[i] = name;
   }
 
-  function buildCard(team, ownAvg, enemyAvg, finished, approx, form, idx) {
+  function buildCard(team, ownAvg, enemyAvg, finished, approx, form, idx, meIn = true) {
     const card = h("div", "card");
     const now = M.estimate(ownAvg, enemyAvg, settings.rating);
     // The big win chance uses HLTV form when Karasu shows ratings; the win/lose tiles stay on plain
@@ -560,10 +560,13 @@
     fill.style.width = `${pct}%`;
     split.append(fill);
 
-    // A picked player the page no longer shows falls back to you.
-    const whoFor = (name) => (name && form?.players.find((p) => p.name === name)) || null;
+    // A picked player the page no longer shows falls back to you. When you aren't in this match,
+    // the tiles default to the team's first player (usually the captain) instead of your rating.
+    const first = !meIn && form?.players.length ? form.players[0].name : null;
+    const find = (name) => (name && form?.players.find((p) => p.name === name)) || null;
+    const whoFor = (name) => find(name) || find(first);
     let who = whoFor(pickedFor(idx));
-    let { tiles, foot } = rangeParts(ownAvg, enemyAvg, finished, who);
+    let { tiles, foot } = rangeParts(ownAvg, enemyAvg, finished, who, meIn);
     card.append(h("div", "team", team.name), head, split, tiles);
     if (form && form.players.length) {
       // Picking a chip swaps only the tiles, chips and footer line, so nothing else re-animates.
@@ -573,14 +576,14 @@
         else if (pickedFor(idx) !== name || !card.isConnected) return;
         who = whoFor(name);
         if (who && !again) loadPlayerRange(lineupInfo(who.name)?.steam).then((got) => got && pick(name, true));
-        const next = rangeParts(ownAvg, enemyAvg, finished, who);
+        const next = rangeParts(ownAvg, enemyAvg, finished, who, meIn);
         tiles.replaceWith(next.tiles); foot.replaceWith(next.foot);
         ({ tiles, foot } = next);
-        const c = playerChips(form, who && who.name, pick);
+        const c = playerChips(form, who && who.name, pick, meIn);
         chips.replaceWith(c); chips = c;
         if (!again) chips.querySelector(".chip.sel")?.focus({ preventScroll: true });
       };
-      chips = playerChips(form, who && who.name, pick);
+      chips = playerChips(form, who && who.name, pick, meIn);
       if (who) loadPlayerRange(lineupInfo(who.name)?.steam).then((got) => got && pick(who.name, true));
       card.append(chips);
       const legend = h("div", "foot legend", "Impact = Elo + last-30 HLTV form (0.10 HLTV ≈ 50 Elo) · click a player to see their win/lose Elo");
@@ -602,8 +605,11 @@
     const root = host.attachShadow({ mode: "open" });
     root.append(h("style", "", CSS));
     const grid = h("div", "grid");
-    grid.append(buildCard(teams[0], avg[0], avg[1], finished, approx, forms && forms[0], 0),
-                buildCard(teams[1], avg[1], avg[0], finished, approx, forms && forms[1], 1));
+    // Are you one of the players? If not, each card's tiles show its first player instead of you.
+    const me = myName();
+    const meIn = !forms || !forms.some((f) => f && f.players.length) || (!!me && forms.some((f) => f?.players.some((p) => p.name === me)));
+    grid.append(buildCard(teams[0], avg[0], avg[1], finished, approx, forms && forms[0], 0, meIn),
+                buildCard(teams[1], avg[1], avg[0], finished, approx, forms && forms[1], 1, meIn));
     if (myElo() !== null) root.append(meStrip(myElo()));
     root.append(grid);
     section.insertAdjacentElement("beforebegin", host);
