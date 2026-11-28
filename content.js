@@ -645,6 +645,7 @@
     rememberMyElo();
     rememberMyRating();
     rememberMyRange();
+    refreshProfile();
     if (!settings.on) { old.forEach((b) => b.remove()); lastKey = ""; return; }
     rememberScoreboard();
     const { teams, finished } = readTeams();
@@ -825,6 +826,103 @@
     const lo = Number(settings.ratingLow), hi = Number(settings.ratingHigh), r = settings.rating;
     if (!settings.ratingAuto || !(lo > 0) || !(hi > 0) || hi < lo) return null;
     return [Math.min(lo, r), Math.max(hi, r)];
+  }
+
+  // ---------- profile page: where this player's form is taking them ----------
+  // Under "Level 3 · 294 to next" on any player's profile. From the "Last 30 games" box it takes
+  // the HLTV rating average and the win rate, and works out the average Elo per game with the
+  // match-room model (an even match each game, so each win is worth the same as each loss is at
+  // that rating). That gives how many games to the next level, or to dropping one. "Form" is the
+  // same HLTV-form Elo the match room uses: Elo + 500 x (rating − 1).
+  const PBOX = "data-kee-profile";
+  const PCSS = `
+    :host { display: block; margin-top: 8px; font-family: inherit; }
+    .est { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 10px; border-radius: 8px;
+      background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); color: #e7e7ea;
+      font-size: 12px; font-weight: 600; line-height: 1.3; animation: in .3s ease-out both; }
+    @keyframes in { from { opacity: 0; transform: translateY(-3px); } }
+    .tag { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: #8a8b96; font-weight: 700; }
+    .go { font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; }
+    .go.up .ar { color: #4ade80; } .go.dn .ar { color: #f87171; } .go.eq .ar { color: #a1a1aa; }
+    .go b { font-weight: 800; }
+    .sub { flex-basis: 100%; font-size: 11px; font-weight: 500; color: #a1a1aa; font-variant-numeric: tabular-nums; }
+    .sub .up { color: #4ade80; } .sub .dn { color: #f87171; }
+    .form { margin-left: auto; font-size: 11px; font-weight: 600; color: #a1a1aa; white-space: nowrap; }
+    .form b { font-weight: 800; }
+  `;
+  const MAX_GAMES = 200; // beyond this it says "200+ games"
+
+  // Average Elo per game and where it leads, for a player at `elo` with this HLTV average and win rate.
+  function profileTrend(elo, rating, winRate) {
+    // An average can't be a flame game, so keep it just under the flame line.
+    const e = M.estimate(elo, elo, Math.min(rating, M.FLAME_RATING - 0.01));
+    const perGame = winRate * e.win - (1 - winRate) * e.loss;
+    const lv = M.level(elo);
+    let target = null; // { label, games, up }
+    if (perGame >= 0.5 && lv.next) target = { label: lv.next.label, games: Math.ceil(lv.next.toGo / perGame), up: true };
+    else if (perGame <= -0.5 && lv.min > 0) {
+      const below = M.levels.find(([min]) => min < lv.min);
+      target = { label: below[1], games: Math.ceil((elo - lv.min + 1) / -perGame), up: false };
+    }
+    return { perGame, win: e.win, loss: e.loss, target, level: lv };
+  }
+
+  // The numbers this needs, read from the profile: Elo, last-30 W/L and HLTV rating average.
+  function readProfile() {
+    const standing = document.querySelector(".profile-identity-standing");
+    const eloEl = standing?.querySelector(".profile-identity-elo");
+    if (!standing || !eloEl) return null;
+    const elo = toInt(eloEl.textContent);
+    const tile = (re) => [...document.querySelectorAll(".profile-form-tile")]
+      .find((t) => re.test(t.querySelector("dt")?.textContent.trim() || ""))?.querySelector("dd");
+    const wl = tile(/^wins\s*\/\s*losses$/i)?.firstChild?.textContent.match(/(\d+)\s*\/\s*(\d+)/);
+    const rt = tile(/^rating$/i)?.textContent.match(/\d+\.\d+/);
+    if (!Number.isFinite(elo) || !wl || !rt) return null;
+    const wins = +wl[1], losses = +wl[2];
+    if (wins + losses === 0) return null;
+    return { standing, elo, wins, losses, rating: Number(rt[0]) };
+  }
+
+  let profileKey = "";
+  function refreshProfile() {
+    const old = document.querySelectorAll(`[${PBOX}]`);
+    const p = settings.on && /^\/players\//.test(location.pathname) ? readProfile() : null;
+    if (!p) { old.forEach((b) => b.remove()); profileKey = ""; return; }
+    const key = `${location.pathname}|${p.elo}|${p.wins}|${p.losses}|${p.rating}`;
+    if (key === profileKey && old.length === 1 && p.standing.contains(old[0])) return;
+    old.forEach((b) => b.remove());
+    profileKey = key;
+
+    const games = p.wins + p.losses, winRate = p.wins / games;
+    const t = profileTrend(p.elo, p.rating, winRate);
+    const host = document.createElement("div");
+    host.setAttribute(PBOX, "");
+    const root = host.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = PCSS;
+    const box = h("div", "est");
+    const go = h("div", `go ${t.target ? (t.target.up ? "up" : "dn") : "eq"}`);
+    if (t.target) {
+      const lb = h("b", "", t.target.label);
+      lb.style.color = M.level(t.target.up ? t.level.next.at : t.level.min - 1).color;
+      go.append(h("span", "ar", t.target.up ? "▲ " : "▼ "), lb,
+        t.target.games > MAX_GAMES ? ` in ${MAX_GAMES}+ games` : ` in ~${t.target.games} game${t.target.games === 1 ? "" : "s"}`);
+    } else go.append(h("span", "ar", "● "), `Holding ${t.level.label}`);
+    const fe = Math.round(M.formElo(p.elo, p.rating, games));
+    const flv = M.level(fe);
+    const form = h("div", "form", `Form ${fe.toLocaleString()} Elo · `);
+    const fb = h("b", "", flv.label);
+    fb.style.color = flv.color;
+    form.append(fb);
+    const pg = Math.round(t.perGame * 10) / 10;
+    const sub = h("div", "sub");
+    sub.append(h("span", pg > 0 ? "up" : pg < 0 ? "dn" : "", `${pg > 0 ? "+" : pg < 0 ? "−" : "±"}${Math.abs(pg).toFixed(1)} Elo/game`),
+      ` at HLTV ${p.rating.toFixed(2)} and ${Math.round(winRate * 100)}% wins (win +${t.win}, loss −${t.loss})`);
+    box.title = `Estimate from the last ${games} games: an even match each game, won ${Math.round(winRate * 100)}% of the time at a ${p.rating.toFixed(2)} HLTV rating.`
+      + ` Form Elo = Elo + 500 × (HLTV − 1), the same form the match-room win chance uses.`;
+    box.append(h("span", "tag", "Estimate"), go, form, sub);
+    root.append(style, box);
+    p.standing.append(host);
   }
 
   // Karasu is a single-page app: re-check when the page changes, at most ~4 times a second.
