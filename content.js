@@ -436,7 +436,7 @@
       const e = h("div", "ce", `${Math.round(p.pre).toLocaleString()} Elo`);
       // Form Elo: Elo plus their last-30 HLTV form (the same number the win chance uses),
       // coloured by the level it would be, with the difference from their real Elo.
-      const fe = Math.round(p.eff), fd = fe - Math.round(p.pre);
+      const fe = Math.max(0, Math.round(p.eff)), fd = fe - Math.round(p.pre);
       const fr = h("div", "fr", "Form ");
       const fv = h("b", "fv", fe.toLocaleString());
       fv.style.color = M.level(fe).color;
@@ -902,7 +902,7 @@
       const rank = li.querySelector(".match-overview__rank");
       const { rating, games } = rowStats(li);
       if (!rank || !Number.isFinite(rating)) { li.querySelector(`[${RBOX}="form"]`)?.remove(); continue; }
-      const fe = Math.round(M.formElo(elo, rating, games)), fd = fe - elo;
+      const fe = Math.max(0, Math.round(M.formElo(elo, rating, games))), fd = fe - elo;
       rowDeco(li, rank, "form", `${fe}|${fd}`, () => {
         const f = h("span", "f", "Form ");
         const v = h("b", "", fe.toLocaleString());
@@ -1121,7 +1121,7 @@
       const act = Math.round((p.gained / games) * 10) / 10;
       pills.append(pill("Actual", h("b", act > 0 ? "up" : act < 0 ? "dn" : "", signed(act)), "per game"));
     }
-    const fe = Math.round(M.formElo(p.elo, p.rating, games));
+    const fe = Math.max(0, Math.round(M.formElo(p.elo, p.rating, games)));
     const flv = M.level(fe);
     pills.append(pill("Form", h("b", "", fe.toLocaleString()), hexOf(flv, false)));
     if (few) pills.append(Object.assign(pill(`Only ${games} game${games === 1 ? "" : "s"} · damped`), { className: "pill warn" }));
