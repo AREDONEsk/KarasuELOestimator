@@ -287,7 +287,7 @@
       font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
     .chip .cw { font-size: 15px; font-weight: 800; margin-top: 2px; letter-spacing: -.01em; }
     .chip .ce { font-size: 9.5px; font-weight: 600; color: #7a7b86; margin-top: 1px; line-height: 1.35; }
-    .chip .ce .hl { color: #d4d4d8; font-weight: 700; } .chip .ce .hl.hot { color: #fbbf24; } .chip .ce .hl.cold { color: #8a8b96; }
+    .chip .ce .hl { color: #fff; font-weight: 700; } .chip .ce .hl.bad { color: #f87171; } .chip .ce .hl.good { color: #4ade80; } .chip .ce .hl.gold { color: #fbbf24; }
     .chip .mb { position: relative; height: 3px; border-radius: 2px; margin-top: 5px; background: rgba(255,255,255,.07); overflow: hidden; }
     .chip .mb i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
     .mhex { position: relative; flex: none; width: 17px; height: 19px;
@@ -303,6 +303,9 @@
       box-shadow: 0 0 0 1px rgba(255,255,255,.35), 0 0 12px rgba(255,255,255,.12); }
     .tile .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     @media (prefers-reduced-motion: reduce) { .card, .split i { animation: none; } }`;
+
+  // HLTV rating colour: red below 1.00, white to 1.25, green to 1.60, gold from 1.60.
+  const hltvTone = (r) => (r < 1 ? "bad" : r < 1.25 ? "" : r < 1.6 ? "good" : "gold");
 
   const h = (tag, cls, txt) => {
     const e = document.createElement(tag);
@@ -436,7 +439,7 @@
       const hr = h("div", "hr");
       const ht = h("span", "ht");
       if (Number.isFinite(p.rating)) {
-        ht.append("HLTV ", h("b", `hl${p.rating >= 1.25 ? " hot" : p.rating < 0.95 ? " cold" : ""}`, p.rating.toFixed(2)));
+        ht.append("HLTV ", h("b", `hl ${hltvTone(p.rating)}`, p.rating.toFixed(2)));
       } else ht.append("HLTV –");
       hr.append(ht);
       const cc = lineupInfo(p.name)?.country;
@@ -883,7 +886,7 @@
       background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
       font-size: 10.5px; font-weight: 600; color: #a1a1aa; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .pill b { color: #fff; font-weight: 800; }
-    .pill b.hot { color: #fbbf24; } .pill b.cold { color: #8a8b96; }
+    .pill b.bad { color: #f87171; } .pill b.good { color: #4ade80; } .pill b.gold { color: #fbbf24; }
     .pill b.up { color: #4ade80; } .pill b.dn { color: #f87171; }
     .pill .hex { width: 14px; height: 15px; } .pill .hex b { font-size: 7.5px; }
     .pill.warn { border-color: rgba(251,191,36,.35); color: #fbbf24; }
@@ -1023,10 +1026,10 @@
     const pill = (...parts) => { const x = h("span", "pill"); x.append(...parts); return x; };
     const pills = h("div", "pills");
     pills.append(
-      Object.assign(pill("HLTV", h("b", p.rating >= 1.25 ? "hot" : p.rating < 0.95 ? "cold" : "", p.rating.toFixed(2))),
+      Object.assign(pill("HLTV", h("b", hltvTone(p.rating), p.rating.toFixed(2))),
         { title: range ? `Last-30 average; usual range ${range[0].toFixed(2)}–${range[1].toFixed(2)}` : "Last-30 average" }),
       wlPill,
-      pill(h("b", "", `${Math.round(winRate * 100)}%`), "winrate"),
+      pill(h("b", winRate < 0.45 ? "bad" : winRate > 0.55 ? "good" : "", `${Math.round(winRate * 100)}%`), "winrate"),
     );
     if (p.gained !== null) {
       const act = Math.round((p.gained / games) * 10) / 10;
